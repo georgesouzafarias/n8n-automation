@@ -237,15 +237,27 @@ const maxPages = 3; // Número máximo de páginas para buscar (3 x 100 = até 3
 			console.log('Data exported to data.json');
 		}
 
-		return { json: result };
+		// Transform the data into the format expected by n8n
+		// n8n expects an array of {json: item} objects
+		const items = result.data.organization.projectV2.items.nodes.map((node) => {
+			return { json: node };
+		});
+
+		// Return the array of items for n8n to process
+		//console.log(items[0]);
+
+		return items;
 	} catch (error) {
 		console.error('Error:', error.message);
-		return {
-			json: {
-				error: true,
-				message: `Erro ao processar dados: ${error.message}`,
-				inputStructure: JSON.stringify($input).substring(0, 500) + '...',
+		// For errors, return an array with a single error item
+		return [
+			{
+				json: {
+					error: true,
+					message: `Erro ao processar dados: ${error.message}`,
+					inputStructure: JSON.stringify($input).substring(0, 500) + '...',
+				},
 			},
-		};
+		];
 	}
 })();
