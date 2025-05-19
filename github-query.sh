@@ -19,7 +19,124 @@ curl -s -H "Authorization: token $TOKEN" \
      -H "Content-Type: application/json" \
      -d @- https://api.github.com/graphql > data.json << 'EOF'
 {
-  "query": "query { organization(login: \"Interlis\") { projectV2(number: 3) { id title items(first: 100) { nodes { id content { ... on Issue { title number state url assignees(first: 5) { nodes { login } } labels(first: 5) { nodes { name } } updatedAt createdAt } ... on PullRequest { title number state url assignees(first: 5) { nodes { login } } labels(first: 5) { nodes { name } } updatedAt createdAt } } fieldValues(first: 20) { nodes { ... on ProjectV2ItemFieldSingleSelectValue { name field { ... on ProjectV2FieldCommon { name } } } } } } } } } }"
+  "query": "query {
+    organization(login: \"Interlis\") {
+      projectV2(number: 3) {
+        id
+        title
+        fields(first: 20) {
+          nodes {
+            ... on ProjectV2Field {
+              id
+              name
+            }
+            ... on ProjectV2IterationField {
+              id
+              name
+              configuration {
+                completedIterations {
+                  id
+                  title
+                  startDate
+                  duration
+                }
+                iterations {
+                  id
+                  title
+                  startDate
+                  duration
+                }
+                duration
+                startDay
+              }
+            }
+            ... on ProjectV2SingleSelectField {
+              id
+              name
+              options {
+                id
+                name
+              }
+            }
+          }
+        }
+        items(first: 100) {
+          nodes {
+            id
+            content {
+              ... on Issue {
+                title
+                number
+                state
+                url
+                assignees(first: 5) {
+                  nodes {
+                    login
+                  }
+                }
+                labels(first: 5) {
+                  nodes {
+                    name
+                  }
+                }
+                updatedAt
+                createdAt
+              }
+              ... on PullRequest {
+                title
+                number
+                state
+                url
+                assignees(first: 5) {
+                  nodes {
+                    login
+                  }
+                }
+                labels(first: 5) {
+                  nodes {
+                    name
+                  }
+                }
+                updatedAt
+                createdAt
+              }
+            }
+            fieldValues(first: 20) {
+              nodes {
+                ... on ProjectV2ItemFieldSingleSelectValue {
+                  name
+                  field {
+                    ... on ProjectV2FieldCommon {
+                      name
+                    }
+                  }
+                }
+                ... on ProjectV2ItemFieldDateValue {
+                  date
+                  field {
+                    ... on ProjectV2FieldCommon {
+                      name
+                    }
+                  }
+                }
+                ... on ProjectV2ItemFieldIterationValue {
+                  title
+                  startDate
+                  duration
+                  iterationId
+                  field {
+                    ... on ProjectV2FieldCommon {
+                      name
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }"
 }
 EOF
 
