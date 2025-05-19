@@ -203,7 +203,7 @@ async function fetchDataWithPagination() {
 		// Construir o resultado final combinando os metadados da primeira página com todos os nós
 		if (firstPageData) {
 			firstPageData.data.organization.projectV2.items.nodes = allNodes;
-			return firstPageData;
+			return allNodes;
 		} else {
 			const errorMsg = 'Error: No data received from GitHub API';
 			throw new Error(errorMsg);
@@ -219,7 +219,7 @@ const projectNumber = 3;
 const maxPages = 3; // Número máximo de páginas para buscar (3 x 100 = até 300 itens)
 
 try {
-	console.log({ json: fetchDataWithPagination() });
+	fetchDataWithPagination();
 } catch (error) {
 	return {
 		json: {
