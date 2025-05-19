@@ -48,9 +48,100 @@ const sprintCounts = {};
 // Armazena informações sobre sprints
 const sprintInfo = {};
 let currentSprint = null;
+let currentSprintId = null;
 
-// Processa cada item
+// Primeira passagem: Identifica a sprint atual
+// Precisamos fazer isso primeiro para depois filtrar apenas issues da sprint atual
 items.forEach((item) => {
+	if (!exists(item) || !exists(item.fieldValues?.nodes)) return;
+
+	item.fieldValues.nodes.forEach((fieldValue) => {
+		if (
+			!exists(fieldValue) ||
+			!exists(fieldValue.field) ||
+			fieldValue.field.name !== 'Sprint' ||
+			!exists(fieldValue.title)
+		)
+			return;
+
+		const sprint = fieldValue.title;
+		const sprintId = fieldValue.iterationId;
+		const sprintStartDate = fieldValue.startDate;
+		const sprintDuration = fieldValue.duration;
+
+		// Armazena informações da sprint
+		if (!sprintInfo[sprintId]) {
+			sprintInfo[sprintId] = {
+				title: sprint,
+				startDate: sprintStartDate,
+				duration: sprintDuration,
+				endDate: calculateEndDate(sprintStartDate, sprintDuration),
+			};
+		}
+
+		// Determina a sprint atual com base na data
+		const today = new Date();
+		const sprintStart = new Date(sprintStartDate);
+		const sprintEnd = new Date(
+			calculateEndDate(sprintStartDate, sprintDuration),
+		);
+
+		if (today >= sprintStart && today <= sprintEnd) {
+			currentSprint = sprintInfo[sprintId];
+			currentSprintId = sprintId;
+		}
+	});
+});
+
+// Se não encontrou nenhuma sprint atual, usa a data atual para avisar
+if (!currentSprint) {
+	console.log('Nenhuma sprint ativa no momento. Processando todos os itens.');
+} else {
+	console.log(
+		`Sprint atual identificada: ${currentSprint.title} (${currentSprint.startDate} a ${currentSprint.endDate})`,
+	);
+}
+
+// Filtra apenas itens da sprint atual (se uma for encontrada)
+const currentSprintItems = currentSprintId
+	? items.filter((item) => {
+			if (!exists(item) || !exists(item.fieldValues?.nodes)) return false;
+
+			// Verifica se o item pertence à sprint atual
+			return item.fieldValues.nodes.some(
+				(fieldValue) =>
+					exists(fieldValue) &&
+					exists(fieldValue.field) &&
+					fieldValue.field.name === 'Sprint' &&
+					exists(fieldValue.iterationId) &&
+					fieldValue.iterationId === currentSprintId,
+			);
+	  })
+	: items; // Se não houver sprint atual, usa todos os itens
+
+// Log de informações de filtragem
+if (currentSprintId) {
+	if (currentSprintItems.length === 0) {
+		console.log(
+			`Alerta: Não foram encontradas issues na sprint atual (${currentSprint.title})`,
+		);
+	} else {
+		console.log(
+			`Filtrando apenas itens da sprint atual: ${
+				currentSprintItems.length
+			} de ${items.length} itens (${Math.round(
+				(currentSprintItems.length / items.length) * 100,
+			)}%)`,
+		);
+	}
+} else {
+	console.log(
+		`Processando todos os ${items.length} itens, sem filtro de sprint.`,
+	);
+}
+
+// Processa cada item da sprint atual
+currentSprintItems.forEach((item) => {
 	// Pula itens sem conteúdo
 	if (!exists(item) || !exists(item.content)) return;
 
@@ -101,6 +192,7 @@ items.forEach((item) => {
 
 				if (today >= sprintStart && today <= sprintEnd) {
 					currentSprint = sprintInfo[sprintId];
+					currentSprintId = sprintId;
 				}
 			}
 		});
@@ -154,7 +246,7 @@ items.forEach((item) => {
 // Cria o resumo
 const summary = {
 	projectTitle: projectData.title,
-	totalIssues: items.length,
+	totalIssues: currentSprintItems.length,
 	statusCounts: statusCounts,
 	priorityCounts: priorityCounts,
 	assigneeCounts: assigneeCounts,
@@ -165,8 +257,16 @@ const summary = {
 	date: new Date().toISOString(),
 
 	// Contadores adicionais úteis
-	openIssues: items.filter((item) => item.content?.state === 'OPEN').length,
-	closedIssues: items.filter((item) => item.content?.state === 'CLOSED').length,
+	openIssues: currentSprintItems.filter(
+		(item) => item.content?.state === 'OPEN',
+	).length,
+	closedIssues: currentSprintItems.filter(
+		(item) => item.content?.state === 'CLOSED',
+	).length,
+
+	// Metadados da filtragem
+	filteredBySprint: Boolean(currentSprintId),
+	totalUnfilteredIssues: items.length,
 };
 
 // Suporta ambos os ambientes (local e n8n)
