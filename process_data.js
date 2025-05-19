@@ -112,7 +112,8 @@ const summary = {
 
 // Suporta ambos os ambientes (local e n8n)
 if (typeof module !== 'undefined' && module.exports) {
-	console.log({ json: summary }); // local
+	console.log({ json: summary }); // Exibe no console para visualização
+	module.exports = { json: summary }; // Exporta para importação por outros módulos
 } else {
 	return { json: summary }; // n8n
 }
