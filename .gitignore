@@ -1,0 +1,8 @@
+# GitHub token file
+.token.txt
+
+# Output data file
+data.json
+
+# macOS system files
+.DS_Store
