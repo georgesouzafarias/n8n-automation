@@ -1,8 +1,6 @@
 let locaRun = false; // Define se estou executando local.
 let token = '';
 
-let items = [];
-
 if (typeof $input === 'undefined') {
 	console.log('Ambiente local detectado');
 	locaRun = true;
@@ -222,24 +220,24 @@ const maxPages = 3; // Número máximo de páginas para buscar (3 x 100 = até 3
 // Wrap in async function to use await
 (async function () {
 	try {
-		items = await fetchDataWithPagination();
+		const result = await fetchDataWithPagination();
 		console.log('Operation completed successfully!');
 		console.log(
 			'Total items retrieved:',
-			items.data.organization.projectV2.items.nodes.length,
+			result.data.organization.projectV2.items.nodes.length,
 		);
 
 		if (locaRun) {
 			// Export to JSON file
 			fs.writeFileSync(
 				'data.json',
-				JSON.stringify(items.data.organization.projectV2.items.nodes, null, 2),
+				JSON.stringify(result.data.organization.projectV2.items.nodes, null, 2),
 				'utf8',
 			);
 			console.log('Data exported to data.json');
 		}
 
-		return { json: ...items.data };
+		return { json: result };
 	} catch (error) {
 		console.error('Error:', error.message);
 		return {
