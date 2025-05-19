@@ -15,17 +15,17 @@ if (typeof $input === 'undefined') {
 			token = match[0];
 		} else {
 			console.error('Error: Could not extract GitHub token from .token.txt');
-			process.exit(1);
+			throw new Error('Could not extract GitHub token from .token.txt');
 		}
 	} catch (error) {
 		console.error('Error: .token.txt file not found!');
-		process.exit(1);
+		throw new Error('.token.txt file not found!');
 	}
 } else {
 	console.log('Ambiente n8n');
 	if (typeof $vars === 'undefined' || !$vars.TOKEN) {
 		console.error('Error: TOKEN variable not found in n8n environment');
-		process.exit(1);
+		throw new Error('TOKEN variable not found in n8n environment');
 	}
 	token = $vars.TOKEN; // Use a variável TOKEN do n8n
 }
@@ -115,40 +115,67 @@ function makeGraphQLRequest(query) {
 	return new Promise((resolve, reject) => {
 		const data = JSON.stringify({ query });
 
-		const options = {
-			hostname: 'api.github.com',
-			path: '/graphql',
-			method: 'POST',
-			headers: {
-				Authorization: `token ${token}`,
-				'Content-Type': 'application/json',
-				'User-Agent': 'GitHub-GraphQL-API-Client',
-			},
-		};
+		if (locaRun) {
+			// Use Node.js https for local environment
+			const options = {
+				hostname: 'api.github.com',
+				path: '/graphql',
+				method: 'POST',
+				headers: {
+					Authorization: `token ${token}`,
+					'Content-Type': 'application/json',
+					'User-Agent': 'GitHub-GraphQL-API-Client',
+				},
+			};
 
-		const req = https.request(options, (res) => {
-			let responseData = '';
+			const req = https.request(options, (res) => {
+				let responseData = '';
 
-			res.on('data', (chunk) => {
-				responseData += chunk;
+				res.on('data', (chunk) => {
+					responseData += chunk;
+				});
+
+				res.on('end', () => {
+					try {
+						const parsedData = JSON.parse(responseData);
+						resolve(parsedData);
+					} catch (error) {
+						reject(new Error(`Failed to parse response: ${error.message}`));
+					}
+				});
 			});
 
-			res.on('end', () => {
-				try {
-					const parsedData = JSON.parse(responseData);
-					resolve(parsedData);
-				} catch (error) {
-					reject(new Error(`Failed to parse response: ${error.message}`));
-				}
+			req.on('error', (error) => {
+				reject(new Error(`Request failed: ${error.message}`));
 			});
-		});
 
-		req.on('error', (error) => {
-			reject(new Error(`Request failed: ${error.message}`));
-		});
-
-		req.write(data);
-		req.end();
+			req.write(data);
+			req.end();
+		} else {
+			// Use n8n's $http for n8n environment
+			$http
+				.post(
+					'https://api.github.com/graphql',
+					{ query: query },
+					{
+						headers: {
+							Authorization: `token ${token}`,
+							'Content-Type': 'application/json',
+							'User-Agent': 'GitHub-GraphQL-API-Client',
+						},
+					},
+				)
+				.then((response) => {
+					resolve(response.data);
+				})
+				.catch((error) => {
+					reject(
+						new Error(
+							`Request failed: ${error.message || JSON.stringify(error)}`,
+						),
+					);
+				});
+		}
 	});
 }
 
@@ -178,7 +205,9 @@ async function fetchDataWithPagination() {
 					'Error in GraphQL query:',
 					JSON.stringify(response.errors, null, 2),
 				);
-				process.exit(1);
+				throw new Error(
+					'Error in GraphQL query: ' + JSON.stringify(response.errors),
+				);
 			}
 
 			// Salvar a primeira página para manter os metadados
@@ -209,7 +238,7 @@ async function fetchDataWithPagination() {
 		}
 	} catch (error) {
 		console.error('Error:', error.message);
-		process.exit(1);
+		throw error;
 	}
 }
 
