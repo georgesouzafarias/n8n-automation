@@ -1,13 +1,12 @@
-const fs = require('fs');
-const https = require('https');
-
+let locaRun; // Define se estou executando local.
 let token;
 
-if (typeof $vars === 'undefined') {
+if (typeof $input === 'undefined') {
 	console.log('Ambiente local detectado');
+	locaRun = true;
 	try {
-		const fs = require('fs');
-		const https = require('https');
+		var fs = require('fs');
+		var https = require('https');
 
 		const tokenFile = fs.readFileSync('.token.txt', 'utf8');
 		const match = tokenFile.match(/github_pat_[A-Za-z0-9_]*/);
@@ -218,14 +217,28 @@ const organization = 'Interlis';
 const projectNumber = 3;
 const maxPages = 3; // Número máximo de páginas para buscar (3 x 100 = até 300 itens)
 
-try {
-	fetchDataWithPagination();
-} catch (error) {
-	return {
-		json: {
-			error: true,
-			message: `Erro ao processar dados: ${error.message}`,
-			inputStructure: JSON.stringify($input).substring(0, 500) + '...',
-		},
-	};
-}
+// Wrap in async function to use await
+(async function () {
+	try {
+		const result = await fetchDataWithPagination();
+		console.log('Operation completed successfully!');
+		console.log('Total items retrieved:', result.length);
+
+		if (locaRun) {
+			// Export to JSON file
+			fs.writeFileSync('data.json', JSON.stringify(result, null, 2), 'utf8');
+			console.log('Data exported to data.json');
+		}
+
+		return result;
+	} catch (error) {
+		console.error('Error:', error.message);
+		return {
+			json: {
+				error: true,
+				message: `Erro ao processar dados: ${error.message}`,
+				inputStructure: JSON.stringify($input).substring(0, 500) + '...',
+			},
+		};
+	}
+})();
