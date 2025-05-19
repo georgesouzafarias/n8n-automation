@@ -1,5 +1,7 @@
-let locaRun; // Define se estou executando local.
-let token;
+let locaRun = false; // Define se estou executando local.
+let token = '';
+
+let items = [];
 
 if (typeof $input === 'undefined') {
 	console.log('Ambiente local detectado');
@@ -202,7 +204,7 @@ async function fetchDataWithPagination() {
 		// Construir o resultado final combinando os metadados da primeira página com todos os nós
 		if (firstPageData) {
 			firstPageData.data.organization.projectV2.items.nodes = allNodes;
-			return allNodes;
+			return firstPageData;
 		} else {
 			const errorMsg = 'Error: No data received from GitHub API';
 			throw new Error(errorMsg);
@@ -220,17 +222,24 @@ const maxPages = 3; // Número máximo de páginas para buscar (3 x 100 = até 3
 // Wrap in async function to use await
 (async function () {
 	try {
-		const result = await fetchDataWithPagination();
+		items = await fetchDataWithPagination();
 		console.log('Operation completed successfully!');
-		console.log('Total items retrieved:', result.length);
+		console.log(
+			'Total items retrieved:',
+			items.data.organization.projectV2.items.nodes.length,
+		);
 
 		if (locaRun) {
 			// Export to JSON file
-			fs.writeFileSync('data.json', JSON.stringify(result, null, 2), 'utf8');
+			fs.writeFileSync(
+				'data.json',
+				JSON.stringify(items.data.organization.projectV2.items.nodes, null, 2),
+				'utf8',
+			);
 			console.log('Data exported to data.json');
 		}
 
-		return { json: result };
+		return { json: ...items.data };
 	} catch (error) {
 		console.error('Error:', error.message);
 		return {
