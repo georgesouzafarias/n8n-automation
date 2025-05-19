@@ -6,6 +6,16 @@ function exists(value) {
 let projectData,
 	items = [];
 
+// Verifica se estamos em ambiente local
+if (typeof $input === 'undefined') {
+	console.log('Ambiente local detectado, carregando data.json');
+	const fs = require('fs');
+	$input = {
+		item: { json: JSON.parse(fs.readFileSync('./data.json', 'utf8')) },
+	};
+	console.log('Arquivo data.json carregado com sucesso');
+}
+
 try {
 	projectData = $input.item.json.data.organization.projectV2;
 	items = projectData.items.nodes;
@@ -100,4 +110,9 @@ const summary = {
 	closedIssues: items.filter((item) => item.content?.state === 'CLOSED').length,
 };
 
-return { json: summary };
+// Suporta ambos os ambientes (local e n8n)
+if (typeof module !== 'undefined' && module.exports) {
+	console.log({ json: summary }); // local
+} else {
+	return { json: summary }; // n8n
+}
