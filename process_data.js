@@ -3,6 +3,15 @@ function exists(value) {
 	return value !== null && value !== undefined;
 }
 
+// Função auxiliar para calcular a data de término de uma sprint
+function calculateEndDate(startDate, durationDays) {
+	if (!startDate || !durationDays) return null;
+
+	const date = new Date(startDate);
+	date.setDate(date.getDate() + parseInt(durationDays) - 1); // Subtrair 1 porque a data de início já conta como dia 1
+	return date.toISOString().split('T')[0]; // Retorna apenas a parte da data (YYYY-MM-DD)
+}
+
 let projectData,
 	items = [];
 
@@ -34,6 +43,11 @@ const statusCounts = {};
 const priorityCounts = {};
 const assigneeCounts = {};
 const issuesByStatus = {};
+const sprintCounts = {};
+
+// Armazena informações sobre sprints
+const sprintInfo = {};
+let currentSprint = null;
 
 // Processa cada item
 items.forEach((item) => {
@@ -45,6 +59,10 @@ items.forEach((item) => {
 	// Valores padrão
 	let status = 'No Status';
 	let priority = 'No Priority';
+	let sprint = 'No Sprint';
+	let sprintId = null;
+	let sprintStartDate = null;
+	let sprintDuration = null;
 
 	// Tenta encontrar status e prioridade
 	if (exists(item.fieldValues?.nodes)) {
@@ -57,6 +75,34 @@ items.forEach((item) => {
 			if (fieldValue.field.name === 'Priority' && exists(fieldValue.name)) {
 				priority = fieldValue.name;
 			}
+			// Captura informações da sprint
+			if (fieldValue.field.name === 'Sprint' && exists(fieldValue.title)) {
+				sprint = fieldValue.title;
+				sprintId = fieldValue.iterationId;
+				sprintStartDate = fieldValue.startDate;
+				sprintDuration = fieldValue.duration;
+
+				// Armazena informações da sprint para uso posterior
+				if (!sprintInfo[sprintId]) {
+					sprintInfo[sprintId] = {
+						title: sprint,
+						startDate: sprintStartDate,
+						duration: sprintDuration,
+						endDate: calculateEndDate(sprintStartDate, sprintDuration),
+					};
+				}
+
+				// Determina a sprint atual com base na data
+				const today = new Date();
+				const sprintStart = new Date(sprintStartDate);
+				const sprintEnd = new Date(
+					calculateEndDate(sprintStartDate, sprintDuration),
+				);
+
+				if (today >= sprintStart && today <= sprintEnd) {
+					currentSprint = sprintInfo[sprintId];
+				}
+			}
 		});
 	}
 
@@ -65,6 +111,11 @@ items.forEach((item) => {
 
 	// Conta por prioridade
 	priorityCounts[priority] = (priorityCounts[priority] || 0) + 1;
+
+	// Conta por sprint
+	if (sprint !== 'No Sprint') {
+		sprintCounts[sprint] = (sprintCounts[sprint] || 0) + 1;
+	}
 
 	// Agrupa issues por status
 	if (!issuesByStatus[status]) {
@@ -80,6 +131,11 @@ items.forEach((item) => {
 		assignees: issue.assignees?.nodes?.map((a) => a.login) || [],
 		labels: issue.labels?.nodes?.map((l) => l.name) || [],
 		priority: priority,
+		sprint: sprint,
+		sprintStartDate: sprintStartDate,
+		sprintEndDate: sprintStartDate
+			? calculateEndDate(sprintStartDate, sprintDuration)
+			: null,
 		updatedAt: issue.updatedAt || '',
 		createdAt: issue.createdAt || '',
 	});
@@ -102,6 +158,9 @@ const summary = {
 	statusCounts: statusCounts,
 	priorityCounts: priorityCounts,
 	assigneeCounts: assigneeCounts,
+	sprintCounts: sprintCounts,
+	sprints: sprintInfo,
+	currentSprint: currentSprint,
 	issuesByStatus: issuesByStatus,
 	date: new Date().toISOString(),
 
