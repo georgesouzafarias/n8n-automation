@@ -230,7 +230,7 @@ const maxPages = 3; // Número máximo de páginas para buscar (3 x 100 = até 3
 			console.log('Data exported to data.json');
 		}
 
-		return result;
+		return { json: result };
 	} catch (error) {
 		console.error('Error:', error.message);
 		return {
