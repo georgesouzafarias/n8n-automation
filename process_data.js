@@ -51,6 +51,8 @@ const issuesByStatus = {};
 const sprintCounts = {};
 const estimateTotals = {}; // Para armazenar o total de pontos por status
 let totalEstimatePoints = 0; // Total de pontos em todas as issues
+let deliveredPoints = 0; // Total de pontos em issues fechadas
+let pendingPoints = 0; // Total de pontos em issues ainda não fechadas
 
 // Armazena informações sobre sprints
 const sprintInfo = {};
@@ -218,6 +220,13 @@ currentSprintItems.forEach((item) => {
 	}
 	estimateTotals[status] += estimate;
 	totalEstimatePoints += estimate;
+	
+	// Calcula pontos entregues vs. pontos pendentes
+	if (issue.state === 'CLOSED') {
+		deliveredPoints += estimate;
+	} else {
+		pendingPoints += estimate;
+	}
 
 	// Conta por prioridade
 	priorityCounts[priority] = (priorityCounts[priority] || 0) + 1;
@@ -262,9 +271,21 @@ currentSprintItems.forEach((item) => {
 
 				// Soma as estimativas por usuário
 				if (!assigneeEstimates[login]) {
-					assigneeEstimates[login] = 0;
+					assigneeEstimates[login] = {
+						total: 0,      // Total de pontos
+						delivered: 0,  // Pontos entregues (issues fechadas)
+						pending: 0     // Pontos pendentes (issues abertas)
+					};
 				}
-				assigneeEstimates[login] += estimate;
+				
+				// Calcula pontos entregues vs. pendentes por usuário
+				if (issue.state === 'CLOSED') {
+					assigneeEstimates[login].delivered += estimate;
+				} else {
+					assigneeEstimates[login].pending += estimate;
+				}
+				
+				assigneeEstimates[login].total += estimate;
 
 				// Contagem por status para cada usuário
 				if (!assigneeStatusCounts[login]) {
@@ -365,12 +386,20 @@ const summary = {
 	// Estimativas
 	totalEstimatePoints: totalEstimatePoints,
 	estimateTotals: estimateTotals,
+	
+	// Estatísticas de entrega
+	deliveredPoints: deliveredPoints, // Total de pontos já entregues (issues fechadas)
+	pendingPoints: pendingPoints, // Total de pontos ainda não entregues
+	pendingPercentage: totalEstimatePoints > 0 ? Math.round((pendingPoints / totalEstimatePoints) * 100) : 0, // Porcentagem pendente
+	deliveredPercentage: totalEstimatePoints > 0 ? Math.round((deliveredPoints / totalEstimatePoints) * 100) : 0, // Porcentagem entregue
 };
 
 // Suporta ambos os ambientes (local e n8n)
 if (typeof module !== 'undefined' && module.exports) {
 	const fs = require('fs');
 	fs.writeFileSync('./analysis_result.json', JSON.stringify(summary, null, 2));
+	console.log({ json: summary }); // Exibe no console para visualização
+	module.exports = { json: summary }; // Exporta para importação por outros módulos
 } else {
 	return { json: summary }; // n8n
 }
