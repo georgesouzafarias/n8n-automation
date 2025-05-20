@@ -19,8 +19,10 @@ let projectData,
 if (typeof $input === 'undefined') {
 	console.log('Ambiente local detectado, carregando data.json');
 	const fs = require('fs');
+	let localData = JSON.parse(fs.readFileSync('./data.json', 'utf8'));
+
 	$input = {
-		item: { json: JSON.parse(fs.readFileSync('./data.json', 'utf8')) },
+		item: { json: localData[0] },
 	};
 	console.log('Arquivo data.json carregado com sucesso');
 }
@@ -51,7 +53,6 @@ let totalEstimatePoints = 0; // Total de pontos em todas as issues
 const sprintInfo = {};
 let currentSprint = null;
 let currentSprintId = null;
-
 // Primeira passagem: Identifica a sprint atual
 // Precisamos fazer isso primeiro para depois filtrar apenas issues da sprint atual
 items.forEach((item) => {
