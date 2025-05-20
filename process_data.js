@@ -256,7 +256,7 @@ currentSprintItems.forEach((item) => {
 		issue.assignees.nodes.forEach((assignee) => {
 			if (assignee && assignee.login) {
 				const login = assignee.login;
-				
+
 				// Conta o número de issues
 				assigneeCounts[login] = (assigneeCounts[login] || 0) + 1;
 
@@ -265,23 +265,24 @@ currentSprintItems.forEach((item) => {
 					assigneeEstimates[login] = 0;
 				}
 				assigneeEstimates[login] += estimate;
-				
+
 				// Contagem por status para cada usuário
 				if (!assigneeStatusCounts[login]) {
 					assigneeStatusCounts[login] = {};
 				}
-				assigneeStatusCounts[login][status] = (assigneeStatusCounts[login][status] || 0) + 1;
-				
+				assigneeStatusCounts[login][status] =
+					(assigneeStatusCounts[login][status] || 0) + 1;
+
 				// Detalhes avançados por usuário
 				if (!assigneeDetails[login]) {
 					assigneeDetails[login] = {
 						issues: [],
 						totalEstimate: 0,
 						statusBreakdown: {},
-						priorityBreakdown: {}
+						priorityBreakdown: {},
 					};
 				}
-				
+
 				// Adiciona a issue aos detalhes do usuário
 				assigneeDetails[login].issues.push({
 					title: issue.title || 'Sem título',
@@ -289,27 +290,27 @@ currentSprintItems.forEach((item) => {
 					url: issue.url || '#',
 					status: status,
 					priority: priority,
-					estimate: estimate
+					estimate: estimate,
 				});
-				
+
 				// Atualiza estatísticas
 				assigneeDetails[login].totalEstimate += estimate;
-				
+
 				// Status breakdown
 				if (!assigneeDetails[login].statusBreakdown[status]) {
 					assigneeDetails[login].statusBreakdown[status] = {
 						count: 0,
-						points: 0
+						points: 0,
 					};
 				}
 				assigneeDetails[login].statusBreakdown[status].count += 1;
 				assigneeDetails[login].statusBreakdown[status].points += estimate;
-				
+
 				// Priority breakdown
 				if (!assigneeDetails[login].priorityBreakdown[priority]) {
 					assigneeDetails[login].priorityBreakdown[priority] = {
 						count: 0,
-						points: 0
+						points: 0,
 					};
 				}
 				assigneeDetails[login].priorityBreakdown[priority].count += 1;
@@ -342,12 +343,11 @@ const summary = {
 	assigneeEstimates: assigneeEstimates, // Adicionando as estimativas por usuário
 	assigneeStatusCounts: assigneeStatusCounts, // Contagem de issues por status por usuário
 	assigneeDetails: assigneeDetails, // Detalhes detalhados por usuário
-	sprintCounts: sprintCounts,
+	//sprintCounts: sprintCounts, //remove to reduce the information size
 	estimateTotals: estimateTotals,
 	totalEstimatePoints: totalEstimatePoints,
-	sprints: sprintInfo,
 	currentSprint: currentSprint,
-	issuesByStatus: issuesByStatus,
+	//issuesByStatus: issuesByStatus, //remove to reduce the information size
 	date: new Date().toISOString(),
 
 	// Contadores adicionais úteis
@@ -369,8 +369,8 @@ const summary = {
 
 // Suporta ambos os ambientes (local e n8n)
 if (typeof module !== 'undefined' && module.exports) {
-	console.log({ json: summary }); // Exibe no console para visualização
-	module.exports = { json: summary }; // Exporta para importação por outros módulos
+	const fs = require('fs');
+	fs.writeFileSync('./analysis_result.json', JSON.stringify(summary, null, 2));
 } else {
 	return { json: summary }; // n8n
 }
