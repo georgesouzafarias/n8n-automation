@@ -44,6 +44,8 @@ const priorityCounts = {};
 const assigneeCounts = {};
 const issuesByStatus = {};
 const sprintCounts = {};
+const estimateTotals = {}; // Para armazenar o total de pontos por status
+let totalEstimatePoints = 0; // Total de pontos em todas as issues
 
 // Armazena informações sobre sprints
 const sprintInfo = {};
@@ -154,6 +156,7 @@ currentSprintItems.forEach((item) => {
 	let sprintId = null;
 	let sprintStartDate = null;
 	let sprintDuration = null;
+	let estimate = 0; // Valor padrão para estimativa/pontos
 
 	// Tenta encontrar status e prioridade
 	if (exists(item.fieldValues?.nodes)) {
@@ -165,6 +168,10 @@ currentSprintItems.forEach((item) => {
 			}
 			if (fieldValue.field.name === 'Priority' && exists(fieldValue.name)) {
 				priority = fieldValue.name;
+			}
+			// Captura o valor de estimativa/pontos
+			if (fieldValue.field.name === 'Estimate' && exists(fieldValue.number)) {
+				estimate = parseFloat(fieldValue.number) || 0;
 			}
 			// Captura informações da sprint
 			if (fieldValue.field.name === 'Sprint' && exists(fieldValue.title)) {
@@ -201,6 +208,13 @@ currentSprintItems.forEach((item) => {
 	// Conta por status
 	statusCounts[status] = (statusCounts[status] || 0) + 1;
 
+	// Acumula pontos de estimativa por status
+	if (!estimateTotals[status]) {
+		estimateTotals[status] = 0;
+	}
+	estimateTotals[status] += estimate;
+	totalEstimatePoints += estimate;
+
 	// Conta por prioridade
 	priorityCounts[priority] = (priorityCounts[priority] || 0) + 1;
 
@@ -224,6 +238,7 @@ currentSprintItems.forEach((item) => {
 		labels: issue.labels?.nodes?.map((l) => l.name) || [],
 		priority: priority,
 		sprint: sprint,
+		estimate: estimate, // Adicionando a pontuação/estimativa da issue
 		sprintStartDate: sprintStartDate,
 		sprintEndDate: sprintStartDate
 			? calculateEndDate(sprintStartDate, sprintDuration)
@@ -241,6 +256,19 @@ currentSprintItems.forEach((item) => {
 			}
 		});
 	}
+
+	// Soma as estimativas totais
+	if (exists(issue.estimate)) {
+		totalEstimatePoints += parseFloat(issue.estimate);
+	}
+
+	// Soma as estimativas por status
+	if (!estimateTotals[status]) {
+		estimateTotals[status] = 0;
+	}
+	estimateTotals[status] += exists(issue.estimate)
+		? parseFloat(issue.estimate)
+		: 0;
 });
 
 // Cria o resumo
@@ -251,6 +279,8 @@ const summary = {
 	priorityCounts: priorityCounts,
 	assigneeCounts: assigneeCounts,
 	sprintCounts: sprintCounts,
+	estimateTotals: estimateTotals,
+	totalEstimatePoints: totalEstimatePoints,
 	sprints: sprintInfo,
 	currentSprint: currentSprint,
 	issuesByStatus: issuesByStatus,
@@ -267,6 +297,10 @@ const summary = {
 	// Metadados da filtragem
 	filteredBySprint: Boolean(currentSprintId),
 	totalUnfilteredIssues: items.length,
+
+	// Estimativas
+	totalEstimatePoints: totalEstimatePoints,
+	estimateTotals: estimateTotals,
 };
 
 // Suporta ambos os ambientes (local e n8n)
