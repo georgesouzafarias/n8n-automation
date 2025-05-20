@@ -306,8 +306,8 @@ const summary = {
 
 // Suporta ambos os ambientes (local e n8n)
 if (typeof module !== 'undefined' && module.exports) {
-	console.log({ json: summary }); // Exibe no console para visualização
-	module.exports = { json: summary }; // Exporta para importação por outros módulos
+	const fs = require('fs');
+	fs.writeFileSync('./analysis_result.json', JSON.stringify(summary, null, 2));
 } else {
 	return { json: summary }; // n8n
 }
