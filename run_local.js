@@ -53,13 +53,20 @@ try {
 
 	sortedUsers.forEach((user) => {
 		const issues = result.assigneeCounts[user];
-		const userEstimates = result.assigneeEstimates[user] || { total: 0, delivered: 0, pending: 0 };
+		const userEstimates = result.assigneeEstimates[user] || {
+			total: 0,
+			delivered: 0,
+			pending: 0,
+		};
 		const points = userEstimates.total;
-		
+
 		// Calcular percentual de entrega
-		const deliveredPercent = points > 0 ? Math.round((userEstimates.delivered / points) * 100) : 0;
-		
-		console.log(`\n${user}: ${issues} issues, ${points} pontos (${userEstimates.delivered} entregues/${userEstimates.pending} pendentes)`);
+		const deliveredPercent =
+			points > 0 ? Math.round((userEstimates.delivered / points) * 100) : 0;
+
+		console.log(
+			`\n${user}: ${issues} issues, ${points} pontos (${userEstimates.delivered} entregues/${userEstimates.pending} pendentes)`,
+		);
 		console.log(`  Progresso: ${deliveredPercent}% concluído`);
 
 		// Exibe breakdown por status se disponível
@@ -75,9 +82,12 @@ try {
 
 		// Exibe detalhes avançados se disponíveis
 		const details = result.assigneeDetails?.[user];
-		
+
 		// Prioridades
-		if (details?.priorityBreakdown && Object.keys(details.priorityBreakdown).length > 0) {
+		if (
+			details?.priorityBreakdown &&
+			Object.keys(details.priorityBreakdown).length > 0
+		) {
 			console.log('  Priority breakdown:');
 			Object.entries(details.priorityBreakdown)
 				.sort((a, b) => b[1].count - a[1].count)
@@ -90,40 +100,55 @@ try {
 	});
 
 	console.log(`\nTotal de pontos: ${result.totalEstimatePoints}`);
-	
+
 	// Estatísticas de Entrega
 	console.log('\n===== ESTATÍSTICAS DE ENTREGA =====');
 	console.log(`Total de pontos na sprint: ${result.totalEstimatePoints}`);
-	console.log(`Pontos entregues (issues fechadas): ${result.deliveredPoints} (${result.deliveredPercentage}%)`);
-	console.log(`Pontos pendentes (issues abertas): ${result.pendingPoints} (${result.pendingPercentage}%)`);
-	
+	console.log(
+		`Pontos entregues (issues fechadas): ${result.deliveredPoints} (${result.deliveredPercentage}%)`,
+	);
+	console.log(
+		`Pontos pendentes (issues abertas): ${result.pendingPoints} (${result.pendingPercentage}%)`,
+	);
+
 	// Cálculo de progresso da sprint
 	if (result.currentSprint) {
 		const sprintStart = new Date(result.currentSprint.startDate);
 		const sprintEnd = new Date(result.currentSprint.endDate);
 		const today = new Date();
-		
+
 		// Calcula quanto da sprint já passou (em porcentagem)
-		const totalDays = Math.ceil((sprintEnd - sprintStart) / (1000 * 60 * 60 * 24));
-		const daysElapsed = Math.ceil((today - sprintStart) / (1000 * 60 * 60 * 24));
-		const sprintProgress = Math.min(Math.round((daysElapsed / totalDays) * 100), 100);
-		
-		console.log(`Progresso da sprint: ${daysElapsed} de ${totalDays} dias (${sprintProgress}%)`);
-		
+		const totalDays = Math.ceil(
+			(sprintEnd - sprintStart) / (1000 * 60 * 60 * 24),
+		);
+		const daysElapsed = Math.ceil(
+			(today - sprintStart) / (1000 * 60 * 60 * 24),
+		);
+		const sprintProgress = Math.min(
+			Math.round((daysElapsed / totalDays) * 100),
+			100,
+		);
+
+		console.log(
+			`Progresso da sprint: ${daysElapsed} de ${totalDays} dias (${sprintProgress}%)`,
+		);
+
 		// Análise de burndown ideal vs. real
 		const idealBurnRate = sprintProgress; // Ideal: mesma taxa que o tempo
 		const actualBurnRate = result.deliveredPercentage; // Real: porcentagem entregue
-		
+
 		console.log(`\nBurndown:`);
-		console.log(`- Ideal: ${idealBurnRate}% dos pontos deveriam estar entregues`);
+		console.log(
+			`- Ideal: ${idealBurnRate}% dos pontos deveriam estar entregues`,
+		);
 		console.log(`- Real: ${actualBurnRate}% dos pontos estão entregues`);
-		
+
 		if (actualBurnRate >= idealBurnRate) {
-			console.log("✅ Sprint está adiantada ou no ritmo esperado");
+			console.log('✅ Sprint está adiantada ou no ritmo esperado');
 		} else if (actualBurnRate >= idealBurnRate * 0.8) {
-			console.log("⚠️ Sprint está ligeiramente atrasada");
+			console.log('⚠️ Sprint está ligeiramente atrasada');
 		} else {
-			console.log("❌ Sprint está significativamente atrasada");
+			console.log('❌ Sprint está significativamente atrasada');
 		}
 	}
 
@@ -133,19 +158,23 @@ try {
 	// Calcular métricas de produtividade
 	const productivity = sortedUsers.map((user) => {
 		const issues = result.assigneeCounts[user];
-		const userEstimates = result.assigneeEstimates[user] || { total: 0, delivered: 0, pending: 0 };
+		const userEstimates = result.assigneeEstimates[user] || {
+			total: 0,
+			delivered: 0,
+			pending: 0,
+		};
 		const points = userEstimates.total;
 		const pointsPerIssue = issues > 0 ? (points / issues).toFixed(1) : 0;
 
 		// Usar os pontos entregues (issues fechadas)
 		const deliveredPoints = userEstimates.delivered;
-		
+
 		// Encontrar issues finalizadas (em produção ou concluídas)
 		const statusCounts = result.assigneeStatusCounts?.[user] || {};
 		const completedIssues =
 			(statusCounts['Deployed to Production'] || 0) +
 			(statusCounts['Test Done'] || 0);
-			
+
 		// Usamos pontos entregues em vez de pontos por status específicos
 		const completedPoints = deliveredPoints;
 
