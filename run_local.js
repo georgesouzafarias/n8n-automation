@@ -44,18 +44,18 @@ try {
 	Object.entries(result.estimateTotals).forEach(([status, points]) => {
 		console.log(`${status}: ${points} pontos`);
 	});
-	
+
 	console.log('\n-- Issues e Pontos por Usuário --');
 	// Ordenando usuários por número de issues (decrescente)
-	const sortedUsers = Object.keys(result.assigneeCounts).sort((a, b) => 
-		result.assigneeCounts[b] - result.assigneeCounts[a]
+	const sortedUsers = Object.keys(result.assigneeCounts).sort(
+		(a, b) => result.assigneeCounts[b] - result.assigneeCounts[a],
 	);
-	
-	sortedUsers.forEach(user => {
+
+	sortedUsers.forEach((user) => {
 		const issues = result.assigneeCounts[user];
 		const points = result.assigneeEstimates[user] || 0;
 		console.log(`\n${user}: ${issues} issues, ${points} pontos`);
-		
+
 		// Exibe breakdown por status se disponível
 		if (result.assigneeStatusCounts && result.assigneeStatusCounts[user]) {
 			console.log('  Status breakdown:');
@@ -65,51 +65,59 @@ try {
 					console.log(`    - ${status}: ${count} issues`);
 				});
 		}
-		
+
 		// Exibe detalhes avançados se disponíveis
 		if (result.assigneeDetails && result.assigneeDetails[user]) {
 			const details = result.assigneeDetails[user];
-			
+
 			// Prioridades
-			if (details.priorityBreakdown && Object.keys(details.priorityBreakdown).length > 0) {
+			if (
+				details.priorityBreakdown &&
+				Object.keys(details.priorityBreakdown).length > 0
+			) {
 				console.log('  Priority breakdown:');
 				Object.entries(details.priorityBreakdown)
 					.sort((a, b) => b[1].count - a[1].count)
 					.forEach(([priority, data]) => {
-						console.log(`    - ${priority}: ${data.count} issues, ${data.points} pontos`);
+						console.log(
+							`    - ${priority}: ${data.count} issues, ${data.points} pontos`,
+						);
 					});
 			}
 		}
 	});
 
 	console.log(`\nTotal de pontos: ${result.totalEstimatePoints}`);
-	
+
 	// Análise de produtividade
 	console.log('\n===== ANÁLISE DE PRODUTIVIDADE =====');
-	
+
 	// Calcular métricas de produtividade
-	const productivity = sortedUsers.map(user => {
+	const productivity = sortedUsers.map((user) => {
 		const issues = result.assigneeCounts[user];
 		const points = result.assigneeEstimates[user] || 0;
 		const pointsPerIssue = issues > 0 ? (points / issues).toFixed(1) : 0;
-		
+
 		// Encontrar issues finalizadas (em produção ou concluídas)
 		const statusCounts = result.assigneeStatusCounts[user] || {};
-		const completedIssues = 
-			(statusCounts['Deployed to Production'] || 0) + 
+		const completedIssues =
+			(statusCounts['Deployed to Production'] || 0) +
 			(statusCounts['Test Done'] || 0);
-		
+
 		// Pontos em issues finalizadas
 		const details = result.assigneeDetails[user];
 		let completedPoints = 0;
-		
-		completedPoints += (details?.statusBreakdown?.['Deployed to Production']?.points || 0);
-		completedPoints += (details?.statusBreakdown?.['Test Done']?.points || 0);
-		
+
+		completedPoints +=
+			details?.statusBreakdown?.['Deployed to Production']?.points || 0;
+		completedPoints += details?.statusBreakdown?.['Test Done']?.points || 0;
+
 		// Porcentagem de conclusão
-		const completionRate = issues > 0 ? Math.round((completedIssues / issues) * 100) : 0;
-		const pointCompletionRate = points > 0 ? Math.round((completedPoints / points) * 100) : 0;
-		
+		const completionRate =
+			issues > 0 ? Math.round((completedIssues / issues) * 100) : 0;
+		const pointCompletionRate =
+			points > 0 ? Math.round((completedPoints / points) * 100) : 0;
+
 		return {
 			user,
 			issues,
@@ -118,23 +126,31 @@ try {
 			completedIssues,
 			completedPoints,
 			completionRate,
-			pointCompletionRate
+			pointCompletionRate,
 		};
 	});
-	
+
 	// Ordenar por quantidade de pontos (produtividade)
 	productivity.sort((a, b) => b.points - a.points);
-	
+
 	// Exibir tabela de produtividade
-	console.log('Usuário              | Issues | Pontos | Pts/Issue | Concluídas | % Conclusão');
-	console.log('---------------------|--------|--------|-----------|------------|------------');
-	productivity.forEach(p => {
+	console.log(
+		'Usuário              | Issues | Pontos | Pts/Issue | Concluídas | % Conclusão',
+	);
+	console.log(
+		'---------------------|--------|--------|-----------|------------|------------',
+	);
+	productivity.forEach((p) => {
 		const userName = p.user.padEnd(20).substring(0, 20);
 		console.log(
-			`${userName} | ${String(p.issues).padEnd(6)} | ${String(p.points).padEnd(6)} | ${String(p.pointsPerIssue).padEnd(9)} | ${String(p.completedIssues).padEnd(10)} | ${p.completionRate}% (${p.pointCompletionRate}% pts)`
+			`${userName} | ${String(p.issues).padEnd(6)} | ${String(p.points).padEnd(
+				6,
+			)} | ${String(p.pointsPerIssue).padEnd(9)} | ${String(
+				p.completedIssues,
+			).padEnd(10)} | ${p.completionRate}% (${p.pointCompletionRate}% pts)`,
 		);
 	});
-	
+
 	// Salva o resultado completo em um arquivo JSON para análise posterior
 	const fs = require('fs');
 	fs.writeFileSync('./analysis_result.json', JSON.stringify(result, null, 2));
