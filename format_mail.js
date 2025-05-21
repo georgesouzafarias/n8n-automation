@@ -22,7 +22,10 @@ if (exists($input)) {
 }
 
 // Se ainda não encontramos dados úteis
-if (!exists(summary) || !exists(summary.issuesByStatus)) {
+if (
+	!exists(summary) ||
+	(!exists(summary.issuesByStatus) && !exists(summary.statusCounts))
+) {
 	return {
 		json: {
 			error: true,
@@ -105,10 +108,96 @@ if (summary.assigneeCounts) {
   `);
 }
 
-// Criar detalhes de cada status
+// Adicionar estatísticas de pontos estimados e entregues
+if (exists(summary.deliveredPoints) && exists(summary.pendingPoints)) {
+	quickStats.push(`
+    <div class="stat-card">
+      <h3>Progresso da Sprint</h3>
+      <table class="stats-table">
+        <tr><th>Métrica</th><th>Valor</th></tr>
+        <tr><td>Pontos Entregues</td><td align="center"><b>${summary.deliveredPoints}</b> (${summary.deliveredPercentage}%)</td></tr>
+        <tr><td>Pontos Pendentes</td><td align="center"><b>${summary.pendingPoints}</b> (${summary.pendingPercentage}%)</td></tr>
+        <tr><td>Total de Pontos</td><td align="center"><b>${summary.totalEstimatePoints}</b></td></tr>
+      </table>
+    </div>
+  `);
+}
+
+// Criar detalhes de cada status por assignee
 let statusDetails = '';
 
-if (summary.issuesByStatus) {
+// Se temos os dados detalhados dos responsáveis
+if (summary.assigneeDetails) {
+	statusDetails += '<h2>Detalhes por Responsável</h2>';
+
+	Object.entries(summary.assigneeDetails).forEach(([assignee, data]) => {
+		if (!data.issues || data.issues.length === 0) return;
+
+		statusDetails += `
+          <div class="status-section">
+            <h3>${assignee} <span class="count">(${data.issues.length} issues, ${data.totalEstimate} pontos)</span></h3>
+            <table class="issue-table">
+              <tr>
+                <th>Issue</th>
+                <th>Status</th>
+                <th>Prioridade</th>
+                <th>Estimativa</th>
+              </tr>
+        `;
+
+		// Listar issues do responsável
+		data.issues.forEach((issue) => {
+			// Verificar se é um objeto completo
+			if (!exists(issue) || !exists(issue.title)) {
+				return; // Pular issues incompletas
+			}
+
+			// Determinar a cor da linha baseada na prioridade
+			let rowClass = '';
+			if (issue.priority === 'P0') rowClass = 'priority-highest';
+			else if (issue.priority === 'P1') rowClass = 'priority-high';
+
+			// Adicionar linha da issue
+			statusDetails += `
+                <tr class="${rowClass}">
+                  <td><a href="${issue.url || '#'}" target="_blank">#${
+				issue.number || '?'
+			}: ${issue.title}</a></td>
+                  <td align="center">${issue.status || 'N/A'}</td>
+                  <td align="center">${issue.priority || 'N/A'}</td>
+                  <td align="center">${issue.estimate || 'N/A'}</td>
+                </tr>
+            `;
+		});
+
+		// Adicionar resumo de status
+		if (data.statusBreakdown) {
+			statusDetails += `
+                <tr class="status-summary">
+                  <td colspan="4">
+                    <strong>Resumo por Status:</strong>
+                    ${Object.entries(data.statusBreakdown)
+											.map(
+												([status, info]) =>
+													`${status}: ${info.count || 0} issues (${
+														info.points || 0
+													} pontos)`,
+											)
+											.join(', ')}
+                  </td>
+                </tr>
+            `;
+		}
+
+		statusDetails += `
+            </table>
+          </div>
+        `;
+	});
+}
+
+// Compatibilidade com o formato antigo, se disponível
+else if (summary.issuesByStatus) {
 	Object.entries(summary.issuesByStatus).forEach(([status, issues]) => {
 		// Pular se não houver issues
 		if (!issues || !issues.length) return;
@@ -269,6 +358,11 @@ const emailHtml = `
       background-color: #f9f9f9;
     }
 
+    .status-summary {
+      background-color: #eef6ff !important;
+      font-size: 0.9em;
+    }
+
     .priority-highest {
       background-color: #ffeeee !important;
     }
@@ -299,6 +393,32 @@ const emailHtml = `
       margin-bottom: 30px;
     }
 
+    .sprint-info {
+      background-color: #f0f8ff;
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 30px;
+      border: 1px solid #d1e3ff;
+    }
+
+    .progress-bar-container {
+      background-color: #eee;
+      border-radius: 5px;
+      margin: 10px 0;
+      height: 20px;
+    }
+
+    .progress-bar {
+      height: 20px;
+      background-color: #2C74B3;
+      border-radius: 5px;
+      color: white;
+      text-align: center;
+      line-height: 20px;
+      font-size: 12px;
+      font-weight: bold;
+    }
+
     .footer {
       margin-top: 50px;
       border-top: 1px solid #ddd;
@@ -313,17 +433,53 @@ const emailHtml = `
   <h1>Resumo da Sprint: ${summary.projectTitle || 'Interlis Board'}</h1>
   <p class="date">Relatório gerado em: ${formattedDate}</p>
 
+  ${
+		summary.currentSprint
+			? `
+  <div class="sprint-info">
+    <h3>Sprint ${summary.currentSprint.title}</h3>
+    <p><strong>Período:</strong> ${new Date(
+			summary.currentSprint.startDate,
+		).toLocaleDateString('pt-BR')} a ${new Date(
+					summary.currentSprint.endDate,
+			  ).toLocaleDateString('pt-BR')}</p>
+    <p><strong>Duração:</strong> ${summary.currentSprint.duration} dias</p>
+    <p><strong>Progresso:</strong></p>
+    <div class="progress-bar-container">
+      <div class="progress-bar" style="width: ${summary.deliveredPercentage}%">
+        ${summary.deliveredPercentage}% Completo
+      </div>
+    </div>
+  </div>
+  `
+			: ''
+	}
+
   <div class="summary-box">
     <p><strong>Total de issues:</strong> ${summary.totalIssues || 'N/A'}</p>
     <p><strong>Issues abertas:</strong> ${summary.openIssues || 'N/A'}</p>
     <p><strong>Issues fechadas:</strong> ${summary.closedIssues || 'N/A'}</p>
+    ${
+			summary.totalEstimatePoints
+				? `<p><strong>Total de pontos:</strong> ${summary.totalEstimatePoints}</p>`
+				: ''
+		}
+    ${
+			summary.deliveredPoints
+				? `<p><strong>Pontos entregues:</strong> ${summary.deliveredPoints} (${summary.deliveredPercentage}%)</p>`
+				: ''
+		}
+    ${
+			summary.pendingPoints
+				? `<p><strong>Pontos pendentes:</strong> ${summary.pendingPoints} (${summary.pendingPercentage}%)</p>`
+				: ''
+		}
   </div>
 
   <div class="stats-container">
     ${quickStats.join('')}
   </div>
 
-  <h2>Detalhes por Status</h2>
   ${statusDetails}
 
   <div class="footer">
