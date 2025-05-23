@@ -12,6 +12,18 @@ function calculateEndDate(startDate, durationDays) {
 	return date.toISOString().split('T')[0]; // Retorna apenas a parte da data (YYYY-MM-DD)
 }
 
+// Função para calcular a idade da issue em dias
+function calculateIssueDuration(createdAt, updatedAt) {
+	if (!createdAt || !updatedAt) return 0;
+
+	const created = new Date(createdAt);
+	const updated = new Date(updatedAt);
+	const durationMs = updated - created;
+
+	// Converte para dias
+	return Math.floor(durationMs / (1000 * 60 * 60 * 24));
+}
+
 let projectData,
 	items = [];
 
@@ -44,17 +56,26 @@ try {
 const statusCounts = {};
 const priorityCounts = {};
 const assigneeCounts = {}; // Número de issues por usuário
+const assigneeBugCounts = {}; // Número de bugs por usuário
 const assigneeEstimates = {}; // Total de pontos por usuário
 const assigneeStatusCounts = {}; // Contagem de issues por status por usuário
 const assigneeDetails = {}; // Detalhes detalhados por usuário
 const issuesByStatus = {};
+const bugsByStatus = {}; // Bugs organizados por status
+const bugsByPriority = {}; // Bugs organizados por prioridade
 const sprintCounts = {};
 const issueTypeCounts = {}; // Para contar os tipos de issues (bugs, etc.)
 const estimateTotals = {}; // Para armazenar o total de pontos por status
+const bugResolutionTimes = []; // Armazena tempos de resolução de bugs
 let totalEstimatePoints = 0; // Total de pontos em todas as issues
 let deliveredPoints = 0; // Total de pontos em issues fechadas
 let pendingPoints = 0; // Total de pontos em issues ainda não fechadas
 let bugCount = 0; // Contador específico para bugs
+let pendingBugCount = 0; // Contador para bugs pendentes
+let deliveredBugCount = 0; // Contador para bugs fechados
+let bugPoints = 0; // Total de pontos em bugs
+let deliveredBugPoints = 0; // Pontos em bugs fechados
+let pendingBugPoints = 0; // Pontos em bugs pendentes
 
 // Armazena informações sobre sprints
 const sprintInfo = {};
@@ -248,10 +269,98 @@ currentSprintItems.forEach((item) => {
 	totalEstimatePoints += estimate;
 
 	// Calcula pontos entregues vs. pontos pendentes
+	// Determina se a issue é um bug
+	const isBug =
+		exists(issue.issueType) &&
+		issue.issueType.name.toLowerCase().includes('bug');
+
+	// Calcula pontos entregues vs. pontos pendentes
 	if (issue.state === 'CLOSED') {
 		deliveredPoints += estimate;
+
+		// Se for um bug, incremente o contador de bugs entregues
+		if (isBug) {
+			deliveredBugCount++;
+			deliveredBugPoints += estimate; // Adiciona aos pontos de bugs entregues
+		}
 	} else {
 		pendingPoints += estimate;
+
+		// Se for um bug, incremente o contador de bugs pendentes
+		if (isBug) {
+			pendingBugCount++;
+			pendingBugPoints += estimate; // Adiciona aos pontos de bugs pendentes
+		}
+	}
+
+	// Rastreia bugs por status
+	if (isBug) {
+		// Adiciona aos pontos totais de bugs
+		bugPoints += estimate;
+
+		// Adiciona aos pontos de bugs entregues ou pendentes
+		if (issue.state === 'CLOSED') {
+			deliveredBugPoints += estimate;
+
+			// Calcula o tempo de resolução para bugs fechados
+			const resolutionTime = calculateIssueDuration(
+				issue.createdAt,
+				issue.updatedAt,
+			);
+
+			// Armazena informações sobre tempo de resolução
+			bugResolutionTimes.push({
+				number: issue.number,
+				title: issue.title,
+				resolutionDays: resolutionTime,
+				assignees: issue.assignees?.nodes?.map((a) => a.login) || [],
+			});
+		} else {
+			pendingBugPoints += estimate;
+		}
+
+		// Organiza bugs por status
+		if (!bugsByStatus[status]) {
+			bugsByStatus[status] = [];
+		}
+		bugsByStatus[status].push({
+			title: issue.title || 'Sem título',
+			number: issue.number || 0,
+			url: issue.url || '#',
+			state: issue.state || 'UNKNOWN',
+			assignees: issue.assignees?.nodes?.map((a) => a.login) || [],
+			priority: priority,
+			estimate: estimate,
+		});
+
+		// Organiza bugs por prioridade
+		if (!bugsByPriority[priority]) {
+			bugsByPriority[priority] = [];
+		}
+		bugsByPriority[priority].push({
+			title: issue.title || 'Sem título',
+			number: issue.number || 0,
+			url: issue.url || '#',
+			state: issue.state || 'UNKNOWN',
+			assignees: issue.assignees?.nodes?.map((a) => a.login) || [],
+			status: status,
+			estimate: estimate,
+		});
+	}
+
+	// Rastreia bugs por prioridade
+	if (isBug) {
+		if (!bugsByPriority[priority]) {
+			bugsByPriority[priority] = [];
+		}
+		bugsByPriority[priority].push({
+			title: issue.title || 'Sem título',
+			number: issue.number || 0,
+			url: issue.url || '#',
+			state: issue.state || 'UNKNOWN',
+			assignees: issue.assignees?.nodes?.map((a) => a.login) || [],
+			estimate: estimate,
+		});
 	}
 
 	// Conta por prioridade
@@ -303,6 +412,11 @@ currentSprintItems.forEach((item) => {
 				// Conta o número de issues
 				assigneeCounts[login] = (assigneeCounts[login] || 0) + 1;
 
+				// Conta o número de bugs por usuário
+				if (isBug) {
+					assigneeBugCounts[login] = (assigneeBugCounts[login] || 0) + 1;
+				}
+
 				// Soma as estimativas por usuário
 				if (!assigneeEstimates[login]) {
 					assigneeEstimates[login] = {
@@ -333,6 +447,7 @@ currentSprintItems.forEach((item) => {
 					assigneeDetails[login] = {
 						issues: [],
 						totalEstimate: 0,
+						totalBugs: 0, // Total de bugs
 						statusBreakdown: {},
 						priorityBreakdown: {},
 						typeBreakdown: {}, // Adicionando contagem por tipo de issue
@@ -353,39 +468,10 @@ currentSprintItems.forEach((item) => {
 				// Atualiza estatísticas
 				assigneeDetails[login].totalEstimate += estimate;
 
-				// Status breakdown
-				if (!assigneeDetails[login].statusBreakdown[status]) {
-					assigneeDetails[login].statusBreakdown[status] = {
-						count: 0,
-						points: 0,
-					};
+				// Incrementa o contador de bugs se a issue for um bug
+				if (isBug) {
+					assigneeDetails[login].totalBugs += 1;
 				}
-				assigneeDetails[login].statusBreakdown[status].count += 1;
-				assigneeDetails[login].statusBreakdown[status].points += estimate;
-
-				// Priority breakdown
-				if (!assigneeDetails[login].priorityBreakdown[priority]) {
-					assigneeDetails[login].priorityBreakdown[priority] = {
-						count: 0,
-						points: 0,
-					};
-				}
-				assigneeDetails[login].priorityBreakdown[priority].count += 1;
-				assigneeDetails[login].priorityBreakdown[priority].points += estimate;
-
-				// Issue Type breakdown
-				const actualIssueType = exists(issue.issueType)
-					? issue.issueType.name
-					: issueType;
-				if (!assigneeDetails[login].typeBreakdown[actualIssueType]) {
-					assigneeDetails[login].typeBreakdown[actualIssueType] = {
-						count: 0,
-						points: 0,
-					};
-				}
-				assigneeDetails[login].typeBreakdown[actualIssueType].count += 1;
-				assigneeDetails[login].typeBreakdown[actualIssueType].points +=
-					estimate;
 			}
 		});
 	}
@@ -413,6 +499,17 @@ const summary = {
 	issueTypeCounts: issueTypeCounts, // Contagem por tipo de issue
 	bugCount: bugCount, // Contador específico para bugs
 	assigneeCounts: assigneeCounts,
+	assigneeBugCounts: assigneeBugCounts, // Número de bugs por usuário
+
+	// Calcula a proporção de bugs por usuário (quanto maior, pior a qualidade)
+	assigneeBugRatio: Object.keys(assigneeCounts).reduce((acc, login) => {
+		const totalIssues = assigneeCounts[login] || 0;
+		const totalBugs = assigneeBugCounts[login] || 0;
+		acc[login] =
+			totalIssues > 0 ? Math.round((totalBugs / totalIssues) * 100) : 0;
+		return acc;
+	}, {}),
+
 	assigneeEstimates: assigneeEstimates, // Adicionando as estimativas por usuário
 	assigneeStatusCounts: assigneeStatusCounts, // Contagem de issues por status por usuário
 	//assigneeDetails: assigneeDetails, // Detalhes detalhados por usuário - menos informação
@@ -456,6 +553,35 @@ const summary = {
 		currentSprintItems.length > 0
 			? Math.round((bugCount / currentSprintItems.length) * 100)
 			: 0, // Porcentagem de bugs em relação ao total de issues
+	bugResolutionRate:
+		bugCount > 0 ? Math.round((deliveredBugCount / bugCount) * 100) : 0, // Taxa de resolução de bugs (porcentagem de bugs fechados)
+	//bugsByStatus: bugsByStatus, // Bugs organizados por status
+	//bugsByPriority: bugsByPriority, // Bugs organizados por prioridade
+	pendingBugCount: pendingBugCount, // Número de bugs pendentes
+	deliveredBugCount: deliveredBugCount, // Número de bugs entregues
+	assigneeBugCounts: assigneeBugCounts, // Número de bugs por usuário
+
+	// Estatísticas de tempo de resolução de bugs
+	// bugResolution: {
+	// 	times: bugResolutionTimes,
+	// 	averageResolutionDays:
+	// 		bugResolutionTimes.length > 0
+	// 			? Math.round(
+	// 					bugResolutionTimes.reduce(
+	// 						(sum, bug) => sum + bug.resolutionDays,
+	// 						0,
+	// 					) / bugResolutionTimes.length,
+	// 			  )
+	// 			: 0,
+	// 	maxResolutionDays:
+	// 		bugResolutionTimes.length > 0
+	// 			? Math.max(...bugResolutionTimes.map((bug) => bug.resolutionDays))
+	// 			: 0,
+	// 	minResolutionDays:
+	// 		bugResolutionTimes.length > 0
+	// 			? Math.min(...bugResolutionTimes.map((bug) => bug.resolutionDays))
+	// 			: 0,
+	// },
 };
 
 // Suporta ambos os ambientes (local e n8n)
