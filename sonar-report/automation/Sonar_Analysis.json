@@ -1,0 +1,437 @@
+{
+  "name": "Sonar Analysis",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "=0 12 * * 5"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        -40
+      ],
+      "id": "696410f5-246e-4d74-b51f-d40a1b338154",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "sendTo": "george.farias@f4g.com.br",
+        "subject": "={{ $json.output.subject }}",
+        "message": "={{ $json.output.body }}",
+        "options": {
+          "ccList": "akaua.carvalho@f4g.com.br, paulo.silva@f4g.com.br"
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1820,
+        -140
+      ],
+      "id": "6bc8688e-c59f-4bbe-818e-f2dbf1bec8b1",
+      "name": "Gmail",
+      "webhookId": "62037e33-a860-4e97-bc03-17c815335d7d",
+      "executeOnce": true,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "9eY5yubWIBMcDRl1",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://sonarcloud.io/api/projects/search?organization={{$json.ORGANIZATION}}&ps=100",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        460,
+        -40
+      ],
+      "id": "49531af8-3c1a-4ae0-8f3f-6e91cd6e5df2",
+      "name": "Get Data",
+      "executeOnce": false,
+      "credentials": {
+        "githubApi": {
+          "id": "leqgDcgVWMXdmn3K",
+          "name": "GitHub account"
+        },
+        "httpBearerAuth": {
+          "id": "XHp2QrK54NhI8Krk",
+          "name": "Bearer Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Você analisará o relatório da qualidade de código abaixo:\n\n1. **current** — Dados da consulta atual: {{ JSON.stringify($json.projects) }}\n\n",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=````plaintext\nVocê é um Analista de Qualidade de Código de nível sênior com vasta experiência em métricas de engenharia de software, DevOps e qualidade contínua. Sua missão é analisar semanalmente os dados de múltiplos repositórios provenientes do SonarCloud, fornecidos em formato JSON. Cada repositório contém métricas como cobertura de testes, número de bugs, code smells, duplicação de código, vulnerabilidades e linhas de código.\n\nSua tarefa é gerar um relatório em formato JSON com os seguintes campos:\n\n- `subject`: linha de assunto do e-mail com o padrão: `\"Análise da Qualidade do Código - <Data do Relatório>\"`\n- `body`: conteúdo HTML estruturado, conforme instruções abaixo.\n\n## Instruções para o campo `body` (HTML)\n\n- Não use `<html>`, `<head>` ou `<body>` completos.\n- Use `<h2>` e `<h3>` para títulos, `<ul>` e `<li>` para listas, e `<strong>` para ênfase.\n- Utilize emojis para chamar atenção para bons e maus desempenhos.\n- Compare os dados da semana atual com os dados anteriores (caso fornecidos).\n- Destaque:\n  - Projetos com melhoria significativa em cobertura ✅\n  - Reduções de bugs ou vulnerabilidades 🛡️\n  - Projetos com aumento preocupante de problemas 🚨\n\n## Regras de Análise:\n\n1. Analise cada projeto individualmente e gere um resumo.\n2. Compare com a semana anterior (caso você receba ambos os conjuntos de dados: atual e anterior).\n3. Destaque os projetos com maiores evoluções positivas e negativas.\n4. Ao final, escreva uma seção com recomendações para o time de engenharia.\n5. Use uma linguagem profissional, clara e com sugestões práticas.\n6. Priorize métricas de cobertura, bugs e vulnerabilidades como principais indicadores.\n7. Ordene os projetos por criticidade (maior número de problemas primeiro).\n\nVocê receberá os dados no seguinte formato:\n\n```json\n[\n  {\n    \"id\": \"ID do projeto\",\n    \"key\": \"chave técnica\",\n    \"name\": \"nome do projeto\",\n    \"measures\": [\n      {\"metric\": \"coverage\", \"value\": \"65.8\"},\n      {\"metric\": \"bugs\", \"value\": \"3\"},\n      {\"metric\": \"code_smells\", \"value\": \"179\"},\n      {\"metric\": \"duplicated_lines_density\", \"value\": \"7.2\"},\n      {\"metric\": \"ncloc\", \"value\": \"92897\"},\n      {\"metric\": \"vulnerabilities\", \"value\": \"0\"}\n    ]\n  }\n]\n````\n\nBaseado nesses dados, produza o relatório em JSON no seguinte formato:\n\n```json\n{\n\t\"subject\": \"Análise da Qualidade do Código - 23/05/2025\",\n\t\"body\": \"<HTML formatado conforme instruções com insights por projeto, comparações com a semana anterior se disponível, e uma seção de recomendações finais>\"\n}\n```\n\nCaso receba apenas os dados da semana atual (sem comparação com dados anteriores), baseie-se apenas nos valores absolutos, destacando:\n\n- Cobertura abaixo de 50% 🚫\n- Bugs ou vulnerabilidades presentes ⚠️\n- Duplicação acima de 10% 📛\n\nAo fim do relatório, escreva um parágrafo com recomendações para melhoria contínua da qualidade dos projetos.\n\nSe os dados anteriores forem fornecidos, compare as métricas com a semana anterior e destaque as variações (positivas ou negativas) em percentual e número absoluto.\n\nSeja preciso, visualmente atrativo, e útil para equipes de engenharia e gestão técnica.\n\n## Modelo\n\n{\n  \"subject\": \"Análise da Qualidade do Código - 23/05/2025\",\n  \"body\": \"<h2>📊 Relatório Semanal de Qualidade do Código</h2>\\n<p>Data do relatório: <strong>23/05/2025</strong></p>\\n\\n<h3>🔍 Visão Geral</h3>\\n<ul>\\n    <li><strong>Projetos analisados:</strong> 5</li>\\n    <li><strong>Critérios principais:</strong> Cobertura de testes, Bugs, Vulnerabilidades, Duplicação de código</li>\\n</ul>\\n\\n<h3>📈 Destaques Positivos</h3>\\n<ul>\\n    <li><strong>interlis-backend:</strong> Boa cobertura de testes (65.8%) ✅</li>\\n    <li><strong>interlis-reports:</strong> Sem bugs e duplicação zerada 🛡️</li>\\n</ul>\\n\\n<h3>🚨 Pontos de Atenção</h3>\\n<ul>\\n    <li><strong>interlis-frontend:</strong> Alta duplicação (15.5%) e 18 bugs ⚠️</li>\\n    <li><strong>meuexame-backend:</strong> 6 vulnerabilidades encontradas ⚠️</li>\\n    <li><strong>meuexame-frontend:</strong> Cobertura ainda baixa (34%) e bugs presentes</li>\\n</ul>\\n\\n<h3>📌 Análise por Projeto</h3>\\n<table border=\\\"1\\\" cellspacing=\\\"0\\\" cellpadding=\\\"6\\\" style=\\\"border-collapse:collapse;font-family:sans-serif;width:100%;\\\">\\n    <thead style=\\\"background:#f8f9fa;\\\">\\n        <tr>\\n            <th>Projeto</th>\\n            <th>Cobertura</th>\\n            <th>Bugs</th>\\n            <th>Vulnerabilidades</th>\\n            <th>Duplicação</th>\\n            <th>Code Smells</th>\\n            <th>Status</th>\\n        </tr>\\n    </thead>\\n    <tbody>\\n        <tr>\\n            <td><strong>interlis-backend</strong></td>\\n            <td>\\n                <div style='background:#e9ecef;width:100px;border-radius:4px;overflow:hidden;'>\\n                    <div style='background:#ffc107;width:65.8%;height:12px;'></div>\\n                </div>\\n                <span style='font-size:12px;'>65.8%</span>\\n            </td>\\n            <td>3</td>\\n            <td>0 ✅</td>\\n            <td>7.2%</td>\\n            <td>179</td>\\n            <td>🟢</td>\\n        </tr>\\n        <tr>\\n            <td><strong>interlis-frontend</strong></td>\\n            <td>\\n                <div style='background:#e9ecef;width:100px;border-radius:4px;overflow:hidden;'>\\n                    <div style='background:#dc3545;width:24.9%;height:12px;'></div>\\n                </div>\\n                <span style='font-size:12px;'>24.9%</span>\\n            </td>\\n            <td>18 ⚠️</td>\\n            <td>0 ✅</td>\\n            <td>15.5% 🔥</td>\\n            <td>1270</td>\\n            <td>🔴</td>\\n        </tr>\\n        <tr>\\n            <td><strong>interlis-reports</strong></td>\\n            <td>\\n                <div style='background:#e9ecef;width:100px;border-radius:4px;overflow:hidden;'>\\n                    <div style='background:#dc3545;width:22.8%;height:12px;'></div>\\n                </div>\\n                <span style='font-size:12px;'>22.8%</span>\\n            </td>\\n            <td>0 ✅</td>\\n            <td>3 ⚠️</td>\\n            <td>0.0% ✅</td>\\n            <td>2</td>\\n            <td>🟢</td>\\n        </tr>\\n        <tr>\\n            <td><strong>meuexame-backend</strong></td>\\n            <td>\\n                <div style='background:#e9ecef;width:100px;border-radius:4px;overflow:hidden;'>\\n                    <div style='background:#dc3545;width:32.3%;height:12px;'></div>\\n                </div>\\n                <span style='font-size:12px;'>32.3%</span>\\n            </td>\\n            <td>0 ✅</td>\\n            <td>6 ⚠️</td>\\n            <td>0.7%</td>\\n            <td>37</td>\\n            <td>🟡</td\n\n"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        1380,
+        -140
+      ],
+      "id": "2745c941-3611-44b6-aa36-645fb20efc6d",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        1320,
+        80
+      ],
+      "id": "4d6e394a-5be7-4364-9f96-f641b1f9c561",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "BHXusSEU10unDNKa",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "gpt-memory-store-sonar"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryRedisChat",
+      "typeVersion": 1.5,
+      "position": [
+        1480,
+        80
+      ],
+      "id": "2a60d2a8-69a7-493c-9b16-59827b10cbf9",
+      "name": "Redis Chat Memory",
+      "credentials": {
+        "redis": {
+          "id": "HKdSx38e77S833S7",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"subject\": \"Análise da Qualidade do Código\",\n  \"body\": \"<HTML com análise atual vs histórica>\"\n}\n"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.2,
+      "position": [
+        1620,
+        80
+      ],
+      "id": "64ac3e55-e95b-4e8a-88c8-127acd03002c",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "09e4a75e-5f5b-4028-a2fe-0519040a560f",
+              "name": "ORGANIZATION",
+              "value": "f4g-sistemas-e-solucoes",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        -40
+      ],
+      "id": "f3b832bf-8b7b-4fdd-a3fc-5d3f7cc86dc3",
+      "name": "Set Params"
+    },
+    {
+      "parameters": {
+        "batchSize": "=1",
+        "options": {
+          "reset": false
+        }
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        900,
+        -40
+      ],
+      "id": "aa0989e8-190c-4355-ae58-6778ead355d2",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "url": "=https://sonarcloud.io/api/measures/component?component={{ $json.key}}&metricKeys=ncloc,bugs,vulnerabilities,code_smells,coverage,duplicated_lines_density",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBearerAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1080,
+        60
+      ],
+      "id": "e130abba-66eb-4a32-ac15-cdec7f981654",
+      "name": "Get Project Detail",
+      "executeOnce": false,
+      "credentials": {
+        "githubApi": {
+          "id": "leqgDcgVWMXdmn3K",
+          "name": "GitHub account"
+        },
+        "httpBearerAuth": {
+          "id": "XHp2QrK54NhI8Krk",
+          "name": "Bearer Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return [\n  ...$input.first().json.components\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        -40
+      ],
+      "id": "ef5581c1-f442-4a5d-ae30-8f7df18098f2",
+      "name": "Get Array"
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "destinationFieldName": "projects",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        1080,
+        -140
+      ],
+      "id": "e3113564-f21a-4c5c-9ad0-07ca0e2e52fa",
+      "name": "Aggregate"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Params",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Data": {
+      "main": [
+        [
+          {
+            "node": "Get Array",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis Chat Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Gmail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Params": {
+      "main": [
+        [
+          {
+            "node": "Get Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "Aggregate",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Project Detail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Project Detail": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Array": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Sao_Paulo",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "9512399f-9af9-41d7-a11d-73e88ede74ab",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "680b771266285e0b2805aa12c56e24ddd5aa291181c2c29d2ca50bff81261932"
+  },
+  "id": "YKPQod85Q9AFpEnw",
+  "tags": [
+    {
+      "createdAt": "2025-05-20T16:31:04.983Z",
+      "updatedAt": "2025-05-20T16:31:04.983Z",
+      "id": "YePntUlhLK5IUSTv",
+      "name": "reports"
+    },
+    {
+      "createdAt": "2025-05-20T16:31:15.518Z",
+      "updatedAt": "2025-05-20T16:31:15.518Z",
+      "id": "vSLxRvwJiQOzeGVX",
+      "name": "production"
+    },
+    {
+      "createdAt": "2025-05-20T16:43:04.301Z",
+      "updatedAt": "2025-05-20T16:43:04.301Z",
+      "id": "Ng6Yh4ZQW2L4O4sx",
+      "name": "george"
+    }
+  ]
+}
