@@ -108,6 +108,26 @@ if (summary.assigneeCounts) {
   `);
 }
 
+// Contador por tipo de issue
+if (summary.issueTypeCounts) {
+	const typeRows = Object.entries(summary.issueTypeCounts)
+		.map(
+			([type, count]) =>
+				`<tr><td>${type}</td><td align="center"><b>${count}</b></td></tr>`,
+		)
+		.join('');
+
+	quickStats.push(`
+    <div class="stat-card">
+      <h3>Tipos de Issues</h3>
+      <table class="stats-table">
+        <tr><th>Tipo</th><th>Quantidade</th></tr>
+        ${typeRows}
+      </table>
+    </div>
+  `);
+}
+
 // Adicionar estatísticas de pontos estimados e entregues
 if (exists(summary.deliveredPoints) && exists(summary.pendingPoints)) {
 	quickStats.push(`
@@ -419,6 +439,25 @@ const emailHtml = `
       font-weight: bold;
     }
 
+    .mini-progress-bar-container {
+      background-color: #eee;
+      border-radius: 3px;
+      margin: 0;
+      height: 15px;
+      width: 100%;
+    }
+
+    .mini-progress-bar {
+      height: 15px;
+      background-color: #4CAF50;
+      border-radius: 3px;
+      color: white;
+      text-align: center;
+      line-height: 15px;
+      font-size: 11px;
+      font-weight: bold;
+    }
+
     .footer {
       margin-top: 50px;
       border-top: 1px solid #ddd;
@@ -426,6 +465,25 @@ const emailHtml = `
       color: #666;
       font-size: 0.9em;
       text-align: center;
+    }
+
+    .mini-progress-bar-container {
+      background-color: #eee;
+      border-radius: 5px;
+      height: 10px;
+      width: 100%;
+      margin: 5px 0;
+    }
+
+    .mini-progress-bar {
+      height: 10px;
+      background-color: #2C74B3;
+      border-radius: 5px;
+      color: white;
+      text-align: center;
+      line-height: 10px;
+      font-size: 10px;
+      font-weight: bold;
     }
   </style>
 </head>
@@ -474,11 +532,107 @@ const emailHtml = `
 				? `<p><strong>Pontos pendentes:</strong> ${summary.pendingPoints} (${summary.pendingPercentage}%)</p>`
 				: ''
 		}
+    ${
+			summary.bugCount
+				? `<p><strong>Total de bugs:</strong> ${summary.bugCount} (${summary.bugPercentage}% das issues)</p>`
+				: ''
+		}
+    ${
+			summary.deliveredBugCount
+				? `<p><strong>Bugs resolvidos:</strong> ${summary.deliveredBugCount} (Taxa de resolução: ${summary.bugResolutionRate}%)</p>`
+				: ''
+		}
+    ${
+			summary.pendingBugCount
+				? `<p><strong>Bugs pendentes:</strong> ${summary.pendingBugCount}</p>`
+				: ''
+		}
   </div>
 
   <div class="stats-container">
     ${quickStats.join('')}
   </div>
+
+  ${
+		summary.assigneeBugCounts &&
+		Object.keys(summary.assigneeBugCounts).length > 0
+			? `
+  <h2>Distribuição de Bugs por Responsável</h2>
+  <div class="stats-container">
+    <div class="stat-card" style="flex: 2; min-width: 400px;">
+      <h3>Contador de Bugs por Responsável</h3>
+      <table class="stats-table">
+        <tr>
+          <th>Responsável</th>
+          <th>Bugs</th>
+          <th>% de Bugs</th>
+          <th>Total Issues</th>
+        </tr>
+        ${Object.entries(summary.assigneeBugCounts)
+					.map(
+						([assignee, count]) => `
+          <tr>
+            <td>${assignee}</td>
+            <td align="center"><b>${count}</b></td>
+            <td align="center">${summary.assigneeBugRatio[assignee] || 0}%</td>
+            <td align="center">${summary.assigneeCounts[assignee] || 0}</td>
+          </tr>
+        `,
+					)
+					.join('')}
+      </table>
+    </div>
+  </div>
+  `
+			: ''
+	}
+
+  ${
+		summary.assigneeEstimates &&
+		Object.keys(summary.assigneeEstimates).length > 0
+			? `
+  <h2>Progresso por Responsável</h2>
+  <div class="stats-container">
+    <div class="stat-card" style="flex: 2; min-width: 400px;">
+      <h3>Pontos por Responsável</h3>
+      <table class="stats-table">
+        <tr>
+          <th>Responsável</th>
+          <th>Pontos Entregues</th>
+          <th>Pontos Pendentes</th>
+          <th>Total Pontos</th>
+          <th>% Conclusão</th>
+        </tr>
+        ${Object.entries(summary.assigneeEstimates)
+					.filter(([_, data]) => data.total > 0)
+					.map(([assignee, data]) => {
+						const completionPercentage =
+							data.total > 0
+								? Math.round((data.delivered / data.total) * 100)
+								: 0;
+						return `
+          <tr>
+            <td>${assignee}</td>
+            <td align="center"><b>${data.delivered}</b></td>
+            <td align="center">${data.pending}</td>
+            <td align="center">${data.total}</td>
+            <td align="center">
+              <div class="mini-progress-bar-container">
+                <div class="mini-progress-bar" style="width: ${completionPercentage}%">
+                  ${completionPercentage}%
+                </div>
+              </div>
+            </td>
+          </tr>
+          `;
+					})
+					.join('')}
+      </table>
+    </div>
+  </div>
+  `
+			: ''
+	}
 
   ${statusDetails}
 
