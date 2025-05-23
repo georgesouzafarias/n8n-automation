@@ -22,7 +22,7 @@ if (typeof $input === 'undefined') {
 	let localData = JSON.parse(fs.readFileSync('./data.json', 'utf8'));
 
 	$input = {
-		item: { json: localData[0] },
+		item: { json: localData },
 	};
 	console.log('Arquivo data.json carregado com sucesso');
 }
@@ -49,10 +49,12 @@ const assigneeStatusCounts = {}; // Contagem de issues por status por usuário
 const assigneeDetails = {}; // Detalhes detalhados por usuário
 const issuesByStatus = {};
 const sprintCounts = {};
+const issueTypeCounts = {}; // Para contar os tipos de issues (bugs, etc.)
 const estimateTotals = {}; // Para armazenar o total de pontos por status
 let totalEstimatePoints = 0; // Total de pontos em todas as issues
 let deliveredPoints = 0; // Total de pontos em issues fechadas
 let pendingPoints = 0; // Total de pontos em issues ainda não fechadas
+let bugCount = 0; // Contador específico para bugs
 
 // Armazena informações sobre sprints
 const sprintInfo = {};
@@ -155,10 +157,25 @@ currentSprintItems.forEach((item) => {
 
 	const issue = item.content;
 
+	// Verifica se há um tipo de issue diretamente no objeto content
+	if (exists(issue.issueType) && exists(issue.issueType.name)) {
+		const contentIssueType = issue.issueType.name;
+
+		// Atualiza o contador de bugs
+		if (contentIssueType.toLowerCase().includes('bug')) {
+			bugCount++;
+		}
+
+		// Atualiza as contagens de tipos
+		issueTypeCounts[contentIssueType] =
+			(issueTypeCounts[contentIssueType] || 0) + 1;
+	}
+
 	// Valores padrão
 	let status = 'No Status';
 	let priority = 'No Priority';
 	let sprint = 'No Sprint';
+	let issueType = 'No Type'; // Valor padrão para tipo de issue
 	let sprintId = null;
 	let sprintStartDate = null;
 	let sprintDuration = null;
@@ -174,6 +191,15 @@ currentSprintItems.forEach((item) => {
 			}
 			if (fieldValue.field.name === 'Priority' && exists(fieldValue.name)) {
 				priority = fieldValue.name;
+			}
+			// Captura o tipo de issue (Bug, etc.) - verificando nos campos personalizados
+			if (fieldValue.field.name === 'Type' && exists(fieldValue.name)) {
+				issueType = fieldValue.name;
+
+				// Incrementa o contador de bugs se o tipo for Bug
+				if (issueType.toLowerCase().includes('bug')) {
+					bugCount++;
+				}
 			}
 			// Captura o valor de estimativa/pontos
 			if (fieldValue.field.name === 'Estimate' && exists(fieldValue.number)) {
@@ -220,7 +246,7 @@ currentSprintItems.forEach((item) => {
 	}
 	estimateTotals[status] += estimate;
 	totalEstimatePoints += estimate;
-	
+
 	// Calcula pontos entregues vs. pontos pendentes
 	if (issue.state === 'CLOSED') {
 		deliveredPoints += estimate;
@@ -230,6 +256,13 @@ currentSprintItems.forEach((item) => {
 
 	// Conta por prioridade
 	priorityCounts[priority] = (priorityCounts[priority] || 0) + 1;
+
+	// Conta por tipo de issue (usa o tipo do content ou o tipo de campo, se disponível)
+	const actualIssueType = exists(issue.issueType)
+		? issue.issueType.name
+		: issueType;
+	issueTypeCounts[actualIssueType] =
+		(issueTypeCounts[actualIssueType] || 0) + 1;
 
 	// Conta por sprint
 	if (sprint !== 'No Sprint') {
@@ -250,6 +283,7 @@ currentSprintItems.forEach((item) => {
 		assignees: issue.assignees?.nodes?.map((a) => a.login) || [],
 		labels: issue.labels?.nodes?.map((l) => l.name) || [],
 		priority: priority,
+		issueType: exists(issue.issueType) ? issue.issueType.name : issueType, // Prioriza o tipo do objeto content
 		sprint: sprint,
 		estimate: estimate, // Adicionando a pontuação/estimativa da issue
 		sprintStartDate: sprintStartDate,
@@ -272,19 +306,19 @@ currentSprintItems.forEach((item) => {
 				// Soma as estimativas por usuário
 				if (!assigneeEstimates[login]) {
 					assigneeEstimates[login] = {
-						total: 0,      // Total de pontos
-						delivered: 0,  // Pontos entregues (issues fechadas)
-						pending: 0     // Pontos pendentes (issues abertas)
+						total: 0, // Total de pontos
+						delivered: 0, // Pontos entregues (issues fechadas)
+						pending: 0, // Pontos pendentes (issues abertas)
 					};
 				}
-				
+
 				// Calcula pontos entregues vs. pendentes por usuário
 				if (issue.state === 'CLOSED') {
 					assigneeEstimates[login].delivered += estimate;
 				} else {
 					assigneeEstimates[login].pending += estimate;
 				}
-				
+
 				assigneeEstimates[login].total += estimate;
 
 				// Contagem por status para cada usuário
@@ -301,6 +335,7 @@ currentSprintItems.forEach((item) => {
 						totalEstimate: 0,
 						statusBreakdown: {},
 						priorityBreakdown: {},
+						typeBreakdown: {}, // Adicionando contagem por tipo de issue
 					};
 				}
 
@@ -311,6 +346,7 @@ currentSprintItems.forEach((item) => {
 					url: issue.url || '#',
 					status: status,
 					priority: priority,
+					issueType: exists(issue.issueType) ? issue.issueType.name : issueType, // Prioriza o tipo do objeto content
 					estimate: estimate,
 				});
 
@@ -336,6 +372,20 @@ currentSprintItems.forEach((item) => {
 				}
 				assigneeDetails[login].priorityBreakdown[priority].count += 1;
 				assigneeDetails[login].priorityBreakdown[priority].points += estimate;
+
+				// Issue Type breakdown
+				const actualIssueType = exists(issue.issueType)
+					? issue.issueType.name
+					: issueType;
+				if (!assigneeDetails[login].typeBreakdown[actualIssueType]) {
+					assigneeDetails[login].typeBreakdown[actualIssueType] = {
+						count: 0,
+						points: 0,
+					};
+				}
+				assigneeDetails[login].typeBreakdown[actualIssueType].count += 1;
+				assigneeDetails[login].typeBreakdown[actualIssueType].points +=
+					estimate;
 			}
 		});
 	}
@@ -360,10 +410,12 @@ const summary = {
 	totalIssues: currentSprintItems.length,
 	statusCounts: statusCounts,
 	priorityCounts: priorityCounts,
+	issueTypeCounts: issueTypeCounts, // Contagem por tipo de issue
+	bugCount: bugCount, // Contador específico para bugs
 	assigneeCounts: assigneeCounts,
 	assigneeEstimates: assigneeEstimates, // Adicionando as estimativas por usuário
 	assigneeStatusCounts: assigneeStatusCounts, // Contagem de issues por status por usuário
-	assigneeDetails: assigneeDetails, // Detalhes detalhados por usuário
+	//assigneeDetails: assigneeDetails, // Detalhes detalhados por usuário - menos informação
 	//sprintCounts: sprintCounts, //remove to reduce the information size
 	estimateTotals: estimateTotals,
 	totalEstimatePoints: totalEstimatePoints,
@@ -386,12 +438,24 @@ const summary = {
 	// Estimativas
 	totalEstimatePoints: totalEstimatePoints,
 	estimateTotals: estimateTotals,
-	
+
 	// Estatísticas de entrega
 	deliveredPoints: deliveredPoints, // Total de pontos já entregues (issues fechadas)
 	pendingPoints: pendingPoints, // Total de pontos ainda não entregues
-	pendingPercentage: totalEstimatePoints > 0 ? Math.round((pendingPoints / totalEstimatePoints) * 100) : 0, // Porcentagem pendente
-	deliveredPercentage: totalEstimatePoints > 0 ? Math.round((deliveredPoints / totalEstimatePoints) * 100) : 0, // Porcentagem entregue
+	pendingPercentage:
+		totalEstimatePoints > 0
+			? Math.round((pendingPoints / totalEstimatePoints) * 100)
+			: 0, // Porcentagem pendente
+	deliveredPercentage:
+		totalEstimatePoints > 0
+			? Math.round((deliveredPoints / totalEstimatePoints) * 100)
+			: 0, // Porcentagem entregue
+
+	// Estatísticas de bugs
+	bugPercentage:
+		currentSprintItems.length > 0
+			? Math.round((bugCount / currentSprintItems.length) * 100)
+			: 0, // Porcentagem de bugs em relação ao total de issues
 };
 
 // Suporta ambos os ambientes (local e n8n)
