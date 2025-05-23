@@ -186,10 +186,8 @@ currentSprintItems.forEach((item) => {
 		if (contentIssueType.toLowerCase().includes('bug')) {
 			bugCount++;
 		}
-
-		// Atualiza as contagens de tipos
-		issueTypeCounts[contentIssueType] =
-			(issueTypeCounts[contentIssueType] || 0) + 1;
+		
+		// O tipo de issue será contabilizado mais tarde
 	}
 
 	// Valores padrão
@@ -367,10 +365,12 @@ currentSprintItems.forEach((item) => {
 	priorityCounts[priority] = (priorityCounts[priority] || 0) + 1;
 
 	// Conta por tipo de issue (usa o tipo do content ou o tipo de campo, se disponível)
-	const actualIssueType = exists(issue.issueType)
-		? issue.issueType.name
+	const actualIssueType = exists(issue.issueType) 
+		? issue.issueType.name 
 		: issueType;
-	issueTypeCounts[actualIssueType] =
+	
+	// Atualiza a contagem de tipos (apenas uma vez por issue)
+	issueTypeCounts[actualIssueType] = 
 		(issueTypeCounts[actualIssueType] || 0) + 1;
 
 	// Conta por sprint
