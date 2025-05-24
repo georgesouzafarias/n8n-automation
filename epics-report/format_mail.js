@@ -37,7 +37,7 @@ function formatEpicsEmail(summary) {
 			.epic-status { padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; text-transform: uppercase; }
 			.status-completed { background: #d4edda; color: #155724; }
 			.status-in-progress { background: #fff3cd; color: #856404; }
-			.status-not-started { background: #f8d7da; color: #721c24; }
+			.status-not-started { background: #e2e3e5; color: #383d41; }
 			.footer { background: #f8f9fa; padding: 20px; text-align: center; color: #6c757d; font-size: 14px; }
 			table { border-collapse: collapse; width: 100%; }
 			td { vertical-align: top; padding: 0; }
@@ -103,6 +103,8 @@ function formatEpicsEmail(summary) {
 			title: 'Total de Épicos',
 			value: summary.totalEpics,
 			color: '#667eea',
+			// Format to be more prominent like the other numbers
+			format: true,
 		},
 		{
 			title: 'Taxa Média de Conclusão',
@@ -136,7 +138,9 @@ function formatEpicsEmail(summary) {
 												}</h3>
 												<div style="font-size: 32px; font-weight: bold; margin: 10px 0; color: ${
 													card.color
-												};">${card.value}</div>
+												}; ${card.format ? 'letter-spacing: -0.5px;' : ''}">${
+			card.value
+		}</div>
 												${
 													card.subtext
 														? `<div style="font-size: 18px; color: #6c757d;">${card.subtext}</div>`
@@ -183,12 +187,23 @@ function formatEpicsEmail(summary) {
 				summary.totalEpics > 0
 					? Math.round((count / summary.totalEpics) * 100)
 					: 0;
+
+			// Define specific colors for each status
+			let statusColor;
+			if (status.toLowerCase() === 'completed') {
+				statusColor = '#28a745'; // Green for completed
+			} else if (status.toLowerCase() === 'in progress') {
+				statusColor = '#ffc107'; // Yellow for in progress
+			} else if (status.toLowerCase() === 'not started') {
+				statusColor = '#6c757d'; // Gray for not started
+			} else {
+				statusColor = getProgressColor(percentage); // Fallback
+			}
+
 			html += `
 											<td width="${columnWidth}%" style="padding: 5px; text-align: center;">
 												<div style="font-weight: bold; margin-bottom: 5px;">${status}</div>
-												<div style="font-size: 24px; color: ${getProgressColor(
-													percentage,
-												)};">${count}</div>
+												<div style="font-size: 24px; color: ${statusColor};">${count}</div>
 												<div style="font-size: 12px; color: #6c757d;">${percentage}%</div>
 											</td>
 			`;
@@ -236,13 +251,13 @@ function formatEpicsEmail(summary) {
 														? '#d4edda'
 														: epic.status.toLowerCase() === 'in progress'
 														? '#fff3cd'
-														: '#f8d7da'
+														: '#e2e3e5'
 												}; color: ${
 				epic.status.toLowerCase() === 'completed'
 					? '#155724'
 					: epic.status.toLowerCase() === 'in progress'
 					? '#856404'
-					: '#721c24'
+					: '#383d41'
 			};">${epic.status}</span>
 											</td>
 										</tr>
