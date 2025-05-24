@@ -369,9 +369,7 @@ function formatEpicsEmail(summary) {
 	`;
 
 	return {
-		subject: `📊 Relatório de Épicos - ${summary.totalEpics} épicos (${
-			summary.statistics?.overallProgress || 0
-		}% concluído)`,
+		subject: `📊 Relatório de Épicos`,
 		html: html,
 	};
 }
