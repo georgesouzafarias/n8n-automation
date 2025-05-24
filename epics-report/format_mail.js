@@ -138,9 +138,7 @@ function formatEpicsEmail(summary) {
 												}</h3>
 												<div style="font-size: 32px; font-weight: bold; margin: 10px 0; color: ${
 													card.color
-												}; ${card.format ? 'letter-spacing: -0.5px;' : ''}">${
-			card.value
-		}</div>
+												};">${card.value}%</div>
 												${
 													card.subtext
 														? `<div style="font-size: 18px; color: #6c757d;">${card.subtext}</div>`
@@ -190,6 +188,8 @@ function formatEpicsEmail(summary) {
 
 			// Define specific colors for each status
 			let statusColor;
+			// Replace spaces with non-breaking spaces in status
+			const formattedStatus = status.replace(' ', '\u00A0');
 			if (status.toLowerCase() === 'completed') {
 				statusColor = '#28a745'; // Green for completed
 			} else if (status.toLowerCase() === 'in progress') {
@@ -202,7 +202,7 @@ function formatEpicsEmail(summary) {
 
 			html += `
 											<td width="${columnWidth}%" style="padding: 5px; text-align: center;">
-												<div style="font-weight: bold; margin-bottom: 5px;">${status}</div>
+												<div style="font-weight: bold; margin-bottom: 5px;">${formattedStatus}</div>
 												<div style="font-size: 24px; color: ${statusColor};">${count}</div>
 												<div style="font-size: 12px; color: #6c757d;">${percentage}%</div>
 											</td>
@@ -258,7 +258,7 @@ function formatEpicsEmail(summary) {
 					: epic.status.toLowerCase() === 'in progress'
 					? '#856404'
 					: '#383d41'
-			};">${epic.status}</span>
+			};">${epic.status.replace(' ', '\u00A0')}</span>
 											</td>
 										</tr>
 									</table>
