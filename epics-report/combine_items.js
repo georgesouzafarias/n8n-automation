@@ -1,50 +1,103 @@
-// Combina todos os itens da paginação em um único array para análise de épicos
+const SOURCE_NODE_NAME = 'Get Data'; // Nome do nó de origem
+const MAX_ITERATIONS = 20; // Número máximo de iterações para prevenir loops infinitos
+
+// Array para armazenar todos os nós combinados
 let allNodes = [];
 let projectData = null;
+let totalPagesProcessed = 0;
 
-// Cada item na entrada é uma página de resultados
-$input.all().forEach((item) => {
-	if (
-		item.json &&
-		item.json.data &&
-		item.json.data.organization &&
-		item.json.data.organization.projectV2 &&
-		item.json.data.organization.projectV2.items &&
-		item.json.data.organization.projectV2.items.nodes
-	) {
-		// Extrai os metadados do projeto da primeira resposta
-		if (!projectData) {
-			projectData = item.json.data.organization.projectV2;
+console.log(
+	`Iniciando coleta de dados de múltiplas execuções do nó: ${SOURCE_NODE_NAME}`,
+);
+
+// Loop para coletar todas as saídas disponíveis
+let iteration = 0;
+let hasMoreData = true;
+
+while (hasMoreData && iteration < MAX_ITERATIONS) {
+	try {
+		// Tenta obter os dados da iteração atual
+		const pages = $items(SOURCE_NODE_NAME, 0, iteration);
+
+		if (!pages || pages.length === 0) {
+			console.log(
+				`Nenhum dado encontrado na iteração ${iteration}. Finalizando coleta.`,
+			);
+			hasMoreData = false;
+			continue;
 		}
 
-		// Adiciona todos os nós desta página à nossa coleção
-		// Filtra apenas issues que são relevantes para análise de épicos
-		const pageNodes = item.json.data.organization.projectV2.items.nodes.filter(
-			(node) => {
-				// Inclui apenas issues (não PRs) que podem ser épicos ou que têm sub-issues
-				return (
-					node.content &&
-					node.content.title &&
-					(node.content.subIssuesSummary ||
-						(node.content.labels && node.content.labels.nodes))
-				);
-			},
+		console.log(
+			`Processando dados da iteração ${iteration}. Encontrados ${pages.length} itens.`,
 		);
 
-		allNodes = allNodes.concat(pageNodes);
+		// Processa cada item encontrado na iteração
+		for (const item of pages) {
+			// Verifica se temos os dados no formato esperado
+			const project = item.json?.data?.organization?.projectV2;
+			const nodes = project?.items?.nodes;
+
+			if (project && nodes) {
+				// Se ainda não temos metadados do projeto, salvamos da primeira ocorrência válida
+				if (!projectData) {
+					projectData = project;
+					console.log(
+						`Metadados do projeto obtidos: ${project.title} (ID: ${project.id})`,
+					);
+				}
+
+				// Adiciona os nós encontrados ao array principal
+				console.log(
+					`Adicionando ${nodes.length} novos itens ao conjunto de dados`,
+				);
+				allNodes.push(...nodes);
+				totalPagesProcessed++;
+			} else {
+				console.log(
+					`Aviso: Formato de dados inesperado na iteração ${iteration}`,
+				);
+			}
+		}
+
+		// Avança para a próxima iteração
+		iteration++;
+	} catch (error) {
+		// Se ocorrer um erro, significa que não há mais dados disponíveis
+		console.log(
+			`Fim dos dados disponíveis após ${iteration} iterações. Erro: ${error.message}`,
+		);
+		hasMoreData = false;
 	}
-});
+}
 
-console.log(`Total de items coletados: ${allNodes.length}`);
+// Verifica se conseguimos coletar algum dado
+if (!projectData || allNodes.length === 0) {
+	console.error('Erro: Nenhum dado válido foi encontrado em qualquer iteração');
+	return [
+		{
+			json: {
+				error: true,
+				message: 'Não foi possível coletar dados válidos',
+			},
+		},
+	];
+}
 
-// Constrói a saída final no formato esperado pelo script process_data.js
+// Estatísticas finais
+console.log(`Coleta de dados concluída:`);
+console.log(`- Total de iterações processadas: ${iteration}`);
+console.log(`- Total de páginas válidas: ${totalPagesProcessed}`);
+console.log(`- Total de itens coletados: ${allNodes.length}`);
+console.log(`- Dados do projeto: ${projectData.title} (ID: ${projectData.id})`);
+
+// Constrói o resultado final no formato esperado pelo process_data.js
 const result = {
 	data: {
 		organization: {
 			projectV2: {
-				id: projectData ? projectData.id : null,
-				title: projectData ? projectData.title : 'Epic Analysis Project',
-				fields: projectData ? projectData.fields : { nodes: [] },
+				id: projectData.id,
+				title: projectData.title,
+				fields: projectData.fields,
 				items: {
 					nodes: allNodes,
 				},
@@ -53,5 +106,5 @@ const result = {
 	},
 };
 
-// Retorna um único item com os dados combinados
+// Retorna o resultado consolidado
 return [{ json: result }];

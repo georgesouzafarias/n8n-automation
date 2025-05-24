@@ -1,5 +1,3 @@
-const fs = require('fs');
-
 // Verifica se é ambiente local ou n8n
 const isLocalRun =
 	typeof module !== 'undefined' && module.exports && require.main === module;
@@ -35,7 +33,10 @@ function isEpic(issue) {
 					label.name.toLowerCase() === 'épico' ||
 					label.name.toLowerCase().includes('epic')),
 		);
-		if (hasEpicLabel) return true;
+		if (hasEpicLabel) {
+			console.log(`  ✓ Épico por label: ${issue.title}`);
+			return true;
+		}
 	}
 
 	// Verifica se o título indica que é um épico
@@ -46,15 +47,20 @@ function isEpic(issue) {
 			titleLower.includes('epic:') ||
 			titleLower.startsWith('epic ')
 		) {
+			console.log(`  ✓ Épico por título: ${issue.title}`);
 			return true;
 		}
 	}
 
 	// Verifica se tem sub-issues (indicativo de épico)
 	if (issue.subIssuesSummary && issue.subIssuesSummary.total > 0) {
+		console.log(
+			`  ✓ Épico por sub-issues (${issue.subIssuesSummary.total}): ${issue.title}`,
+		);
 		return true;
 	}
 
+	console.log(`  ✗ Não é épico: ${issue.title}`);
 	return false;
 }
 
@@ -62,21 +68,53 @@ function isEpic(issue) {
 function processEpicsData(items) {
 	console.log(`Processando ${items.length} itens para análise de épicos...`);
 
+	if (items.length > 0) {
+		console.log(
+			'Estrutura do primeiro item:',
+			JSON.stringify(items[0], null, 2),
+		);
+	}
+
 	const epicsByStatus = {};
 	const epicsDetails = [];
 	let totalEpics = 0;
+	let itemsProcessed = 0;
+	let itemsSkipped = 0;
 
 	// Processar cada item
-	items.forEach((item) => {
+	items.forEach((item, index) => {
+		itemsProcessed++;
+
 		// Pula itens sem conteúdo
-		if (!exists(item) || !exists(item.content)) return;
+		if (!exists(item)) {
+			console.log(`Item ${index} é null/undefined`);
+			itemsSkipped++;
+			return;
+		}
+
+		if (!exists(item.content)) {
+			console.log(`Item ${index} não tem content:`, Object.keys(item));
+			itemsSkipped++;
+			return;
+		}
 
 		const issue = item.content;
 
 		// Verifica se é um épico
-		if (!isEpic(issue)) return;
+		const isEpicResult = isEpic(issue);
+		console.log(
+			`Item ${index} (${issue.title || 'sem título'}) é épico: ${isEpicResult}`,
+		);
+
+		if (!isEpicResult) {
+			itemsSkipped++;
+			return;
+		}
 
 		totalEpics++;
+		console.log(`Épico encontrado: ${issue.title}`);
+
+		// ...existing code...
 
 		// Obter informações do status do projeto
 		let projectStatus = 'No Status';
@@ -123,13 +161,16 @@ function processEpicsData(items) {
 			labels: issue.labels?.nodes?.map((l) => l.name) || [],
 			updatedAt: issue.updatedAt || '',
 			createdAt: issue.createdAt || '',
-			description: issue.bodyText
-				? issue.bodyText.substring(0, 200) + '...'
-				: '',
+			// Descrição removida para reduzir tamanho dos dados no n8n
 		};
 
 		epicsDetails.push(epicDetail);
 	});
+
+	console.log(`\nResumo do processamento:`);
+	console.log(`- Items processados: ${itemsProcessed}`);
+	console.log(`- Items ignorados: ${itemsSkipped}`);
+	console.log(`- Épicos encontrados: ${totalEpics}`);
 
 	// Ordenar épicos por taxa de conclusão (decrescente) e depois por data de atualização
 	epicsDetails.sort((a, b) => {
@@ -189,6 +230,7 @@ try {
 	let data;
 
 	if (isLocalRun) {
+		const fs = require('fs');
 		// Ambiente local - ler do arquivo data.json
 		console.log('Executando em ambiente local...');
 
@@ -215,23 +257,55 @@ try {
 		// Ambiente n8n - usar dados de entrada
 		const inputData = $input.all();
 
+		console.log(`Recebidos ${inputData.length} itens de entrada no n8n`);
+		console.log(
+			'Primeiro item recebido:',
+			JSON.stringify(inputData[0]?.json, null, 2),
+		);
+
 		if (!inputData || inputData.length === 0) {
 			throw new Error('Nenhum dado de entrada fornecido');
 		}
 
 		// Combinar dados de múltiplas páginas se necessário
 		data = [];
-		inputData.forEach((item) => {
+		inputData.forEach((item, index) => {
+			console.log(
+				`Processando item ${index + 1}:`,
+				Object.keys(item.json || {}),
+			);
+
 			if (item.json) {
 				if (Array.isArray(item.json)) {
+					console.log(
+						`Item ${index + 1} é array com ${item.json.length} elementos`,
+					);
 					data = data.concat(item.json);
 				} else if (item.json.data?.organization?.projectV2?.items?.nodes) {
-					data = data.concat(item.json.data.organization.projectV2.items.nodes);
+					const nodes = item.json.data.organization.projectV2.items.nodes;
+					console.log(
+						`Item ${index + 1} tem ${nodes.length} nodes na estrutura padrão`,
+					);
+					data = data.concat(nodes);
+				} else if (item.json.projectTitle) {
+					// Se já está processado (vindo de outro node), usar diretamente
+					console.log(`Item ${index + 1} parece já processado`);
+					data.push(item.json);
 				} else {
+					console.log(
+						`Item ${
+							index + 1
+						} estrutura não reconhecida, adicionando como está`,
+					);
 					data.push(item.json);
 				}
 			}
 		});
+
+		console.log(`Total de dados para processamento: ${data.length}`);
+		if (data.length > 0) {
+			console.log('Primeiro item de dados:', JSON.stringify(data[0], null, 2));
+		}
 	}
 
 	// Processar os dados
@@ -239,6 +313,7 @@ try {
 
 	if (isLocalRun) {
 		// Salvar resultado em arquivo
+		const fs = require('fs');
 		fs.writeFileSync(
 			'epics_analysis_result.json',
 			JSON.stringify(result, null, 2),
