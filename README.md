@@ -19,6 +19,26 @@ Processa dados de sprints do GitHub Projects, analisando issues e pull requests 
 
 Obtém e processa métricas do SonarQube para avaliação de qualidade de código, incluindo cobertura de testes, bugs, code smells e vulnerabilidades. Esta automação permite monitorar a saúde do código, identificar problemas técnicos e garantir a manutenção de padrões de qualidade ao longo do desenvolvimento.
 
+### 3. epics-report - Geração de Relatório de Status dos Épicos
+
+Analisa épicos do GitHub Projects através da API GraphQL, utilizando o campo `subIssuesSummary` para obter dados precisos sobre o progresso. Esta automação fornece uma visão executiva dos épicos, incluindo:
+
+- **Análise Automática de Épicos**: Identifica épicos através de labels, títulos ou presença de sub-issues
+- **Métricas de Progresso**: Utiliza `subIssuesSummary` para calcular percentual de conclusão preciso
+- **Status Inteligente**: Determina automaticamente se épico está "Not Started", "In Progress" ou "Completed"
+- **Relatório Executivo**: Gera resumo executivo com insights estratégicos e recomendações
+- **Visualização Rica**: Relatórios HTML com gráficos de progresso e métricas visuais
+
+**Recursos Principais:**
+
+- Taxa média de conclusão de todos os épicos
+- Progresso geral do projeto baseado em sub-issues
+- Identificação de épicos prioritários
+- Recomendações automáticas baseadas em análise de dados
+- Suporte a automação semanal para acompanhamento contínuo
+
+Esta automação é ideal para lideranças técnicas e product managers que precisam de visibilidade sobre o progresso de iniciativas estratégicas.
+
 ## Requisitos
 
 ### Gerais
@@ -48,17 +68,24 @@ O projeto é organizado em módulos com funcionalidades específicas:
 - `sprint-report/process_data.js` - Processamento principal de dados de sprint
 - `sprint-report/combine_items.js` - Combinação de itens de diferentes fontes
 - `sprint-report/format_mail.js` - Formatação de resultados para envio por email
-- `sprint-report/run_local.js` - Script para execução local
-- `sprint-report/Prompt.md` - Documentação auxiliar para usar com LLMs
-- `sprint-report/dump/` - Diretório contendo exemplos de saída (Sprint_Analysis.json, Sprint_Summary.json)
+- `sprint-report/automation/` - Configurações para execução no n8n
 
 ### sonar-report - Geração de Relatório de Qualidade de Código
 
 - `sonar-report/get-infos.sh` - Script para obter dados da API do SonarQube
-- `sonar-report/process_data.js` - Processamento de métricas do SonarQube para o n8n
-- `sonar-report/data.json` - Exemplo de dados do SonarQube para testes locais
-- `sonar-report/project_Interlis_interlis-backend_details.json` - Exemplo de relatório detalhado
-- `sonar-report/projects.json` - Lista de projetos do SonarQube
+- `sonar-report/process_data.js` - Processamento principal de métricas de qualidade
+- `sonar-report/Prompt.md` - Instruções e documentação do módulo
+- `sonar-report/automation/` - Configurações para execução no n8n
+
+### epics-report - Geração de Relatório de Status dos Épicos
+
+- `epics-report/github-query.sh` - Script para obter dados de épicos via GitHub GraphQL API (com suporte a `subIssuesSummary`)
+- `epics-report/process_data.js` - Processamento inteligente de épicos e análise de progresso
+- `epics-report/combine_items.js` - Combinação otimizada de dados para análise de épicos
+- `epics-report/format_mail.js` - Formatação avançada com gráficos de progresso e métricas visuais
+- `epics-report/run_local.js` - Script completo para execução local automatizada
+- `epics-report/automation/Epic_Analysis.json` - Workflow completo n8n para análise detalhada
+- `epics-report/automation/Epic_Summary.json` - Workflow n8n para relatório executivo semanal
 
 ## Como Executar Localmente
 
@@ -124,6 +151,61 @@ Este comando irá:
 - Processar as métricas do SonarQube
 - Gerar um arquivo `sonar-project-file.json` com os resultados
 
+### epics-report - Geração de Relatório de Status dos Épicos
+
+#### Execução Automatizada (Recomendado)
+
+```bash
+# Navegue até o diretório epics-report
+cd epics-report
+
+# Configure seu token do GitHub no arquivo .token.txt
+echo "github_pat_your_token_here" > .token.txt
+
+# Execute análise completa
+node run_local.js
+```
+
+Este comando executa todo o pipeline automaticamente:
+
+1. Obtém dados do GitHub via GraphQL API
+2. Processa épicos e calcula métricas de progresso
+3. Gera relatório formatado em HTML
+4. Exibe resumo executivo no terminal
+
+#### Execução Manual (Passo a Passo)
+
+##### 1. Obter Dados do GitHub
+
+```bash
+# Execute o script de consulta
+./github-query.sh
+```
+
+##### 2. Processar Dados dos Épicos
+
+```bash
+# Execute o processador de dados
+node process_data.js
+```
+
+##### 3. Formatar Relatório (Opcional)
+
+```bash
+# Gere email formatado
+node format_mail.js
+```
+
+**Arquivos Gerados:**
+
+- `data.json` - Dados brutos do GitHub
+- `epics_analysis_result.json` - Análise completa dos épicos
+- `epic_report_email.html` - Relatório HTML formatado
+
+- Carregar automaticamente o arquivo `data.json`
+- Processar os dados
+- Gerar um arquivo `epics_analysis_result.json` com os resultados
+
 ## Uso em n8n
 
 ### Configuração das Automações
@@ -152,6 +234,32 @@ Esta automação coleta e processa métricas de qualidade de código:
 1. **Obtenção de Dados**: Coleta métricas do SonarQube como cobertura de testes, bugs, code smells, etc.
 2. **Processamento**: Extrai e organiza os dados relevantes por projeto
 3. **Visualização**: Prepara os dados para apresentação em dashboards, emails ou relatórios gerenciais
+
+#### epics-report - Workflows para Relatório de Status dos Épicos
+
+Esta automação oferece dois tipos de análise:
+
+**Epic_Analysis.json - Análise Detalhada:**
+
+1. **Coleta Avançada**: Usa GraphQL API com `subIssuesSummary` para dados precisos
+2. **Identificação Inteligente**: Detecta épicos via labels, títulos ou presença de sub-issues
+3. **Análise de Progresso**: Calcula métricas detalhadas de conclusão e tendências
+4. **Relatório Rico**: Gera HTML com gráficos visuais e insights estratégicos
+
+**Epic_Summary.json - Resumo Executivo Semanal:**
+
+1. **Automação Semanal**: Trigger automático todas as segundas às 9h
+2. **Visão Executiva**: Foca em métricas de alto nível e status geral
+3. **Insights Estratégicos**: Gera recomendações baseadas em análise de dados
+4. **Email Profissional**: Envia resumo formatado para lideranças
+
+**Recursos Avançados:**
+
+- Detecção automática de status (Not Started/In Progress/Completed)
+- Cálculo de taxa média de conclusão
+- Identificação de épicos prioritários
+- Recomendações automáticas baseadas em padrões
+- Suporte a paginação para projetos grandes
 
 ---
 
@@ -228,6 +336,46 @@ Esta automação coleta e processa métricas de qualidade de código:
 		]
 	}
 ]
+```
+
+### Exemplo de saída do epics-report (Relatório de Status dos Épicos)
+
+```json
+{
+	"totalEpics": 10,
+	"epicsProgress": {
+		"Not Started": 3,
+		"In Progress": 5,
+		"Completed": 2
+	},
+	"epicsDetails": [
+		{
+			"epicId": "1",
+			"epicTitle": "Epic 1",
+			"status": "In Progress",
+			"completionRate": 75,
+			"subIssues": [
+				{
+					"issueId": "1.1",
+					"issueTitle": "Sub-issue 1.1",
+					"status": "Completed"
+				},
+				{
+					"issueId": "1.2",
+					"issueTitle": "Sub-issue 1.2",
+					"status": "In Progress"
+				}
+			]
+		},
+		{
+			"epicId": "2",
+			"epicTitle": "Epic 2",
+			"status": "Not Started",
+			"completionRate": 0,
+			"subIssues": []
+		}
+	]
+}
 ```
 
 ## Manutenção e Contribuição

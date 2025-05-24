@@ -1,654 +1,363 @@
-// Função auxiliar para verificar se um valor existe
+// Formatação de email para relatório de épicos
+// Este script formata os dados processados em um email HTML
+
 function exists(value) {
-	return value !== null && value !== undefined;
+	return value !== null && value !== undefined && value !== '';
 }
 
-// Tenta obter os dados do processamento anterior de forma robusta
-let summary;
-
-// Tenta várias estruturas possíveis
-if (exists($input)) {
-	if (exists($input.json)) {
-		if (Array.isArray($input.json) && $input.json.length > 0) {
-			summary = $input.json[0]; // Caso seja um array
-		} else {
-			summary = $input.json; // Caso seja um objeto direto
-		}
-	} else if (exists($input.item) && exists($input.item.json)) {
-		summary = $input.item.json; // Estrutura comum em n8n
-	} else {
-		summary = $input; // Último recurso
+function formatEpicsEmail(summary) {
+	if (!summary || summary.error) {
+		return {
+			subject: 'Erro no Relatório de Épicos',
+			html: `
+                <div style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto;">
+                    <h1 style="color: #d32f2f;">Erro no Relatório de Épicos</h1>
+                    <p style="color: #666;">${
+											summary?.message ||
+											'Erro desconhecido ao processar dados dos épicos'
+										}</p>
+                </div>
+            `,
+		};
 	}
-}
 
-// Se ainda não encontramos dados úteis
-if (
-	!exists(summary) ||
-	(!exists(summary.issuesByStatus) && !exists(summary.statusCounts))
-) {
+	// CSS básico para o email
+	const styles = `
+        <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 900px; margin: 0 auto; padding: 20px; }
+            .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 10px 10px 0 0; }
+            .header h1 { margin: 0; font-size: 28px; }
+            .header .subtitle { opacity: 0.9; margin-top: 10px; }
+            .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin: 20px 0; }
+            .stat-card { background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px; padding: 20px; text-align: center; }
+            .stat-card h3 { margin: 0 0 10px 0; color: #495057; font-size: 14px; text-transform: uppercase; }
+            .stat-card .number { font-size: 32px; font-weight: bold; margin: 10px 0; }
+            .stat-card .percentage { font-size: 18px; color: #6c757d; }
+            .progress-bar { background: #e9ecef; border-radius: 10px; overflow: hidden; height: 20px; margin: 10px 0; }
+            .progress-fill { height: 100%; transition: width 0.3s ease; }
+            .epic-item { background: white; border: 1px solid #dee2e6; border-radius: 8px; margin: 15px 0; padding: 20px; }
+            .epic-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; }
+            .epic-title { font-size: 18px; font-weight: bold; color: #212529; margin: 0; }
+            .epic-status { padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; text-transform: uppercase; }
+            .status-completed { background: #d4edda; color: #155724; }
+            .status-in-progress { background: #fff3cd; color: #856404; }
+            .status-not-started { background: #f8d7da; color: #721c24; }
+            .epic-meta { font-size: 14px; color: #6c757d; margin: 5px 0; }
+            .assignees { display: flex; flex-wrap: wrap; gap: 5px; margin: 10px 0; }
+            .assignee { background: #e9ecef; padding: 2px 8px; border-radius: 12px; font-size: 12px; }
+            .labels { display: flex; flex-wrap: wrap; gap: 5px; margin: 10px 0; }
+            .label { background: #6f42c1; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; }
+            .footer { background: #f8f9fa; padding: 20px; border-radius: 0 0 10px 10px; text-align: center; color: #6c757d; font-size: 14px; }
+        </style>
+    `;
+
+	// Função para obter cor da barra de progresso
+	function getProgressColor(percentage) {
+		if (percentage >= 80) return '#28a745';
+		if (percentage >= 50) return '#ffc107';
+		if (percentage >= 20) return '#fd7e14';
+		return '#dc3545';
+	}
+
+	// Função para obter classe do status
+	function getStatusClass(status) {
+		switch (status.toLowerCase()) {
+			case 'completed':
+				return 'status-completed';
+			case 'in progress':
+				return 'status-in-progress';
+			default:
+				return 'status-not-started';
+		}
+	}
+
+	// Cabeçalho do email
+	let html = `
+        ${styles}
+        <div class="container">
+            <div class="header">
+                <h1>📊 Relatório de Status dos Épicos</h1>
+                <div class="subtitle">
+                    ${summary.projectTitle || 'Projeto'} - ${
+		summary.generatedAt || new Date().toLocaleString('pt-BR')
+	}
+                </div>
+            </div>
+    `;
+
+	// Cards de estatísticas
+	html += `
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3>Total de Épicos</h3>
+                <div class="number" style="color: #667eea;">${
+									summary.totalEpics
+								}</div>
+            </div>
+            <div class="stat-card">
+                <h3>Taxa Média de Conclusão</h3>
+                <div class="number" style="color: #28a745;">${
+									summary.statistics?.averageCompletionRate || 0
+								}%</div>
+            </div>
+            <div class="stat-card">
+                <h3>Progresso Geral</h3>
+                <div class="number" style="color: ${getProgressColor(
+									summary.statistics?.overallProgress || 0,
+								)};">${summary.statistics?.overallProgress || 0}%</div>
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: ${
+											summary.statistics?.overallProgress || 0
+										}%; background: ${getProgressColor(
+		summary.statistics?.overallProgress || 0,
+	)};"></div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <h3>Sub-issues Totais</h3>
+                <div class="number" style="color: #6c757d;">${
+									summary.statistics?.totalSubIssues || 0
+								}</div>
+                <div class="percentage">${
+									summary.statistics?.completedSubIssues || 0
+								} concluídas</div>
+            </div>
+        </div>
+    `;
+
+	// Distribuição por status
+	if (summary.epicsProgress && Object.keys(summary.epicsProgress).length > 0) {
+		html += `
+            <div class="stat-card" style="margin: 20px 0;">
+                <h3>Distribuição por Status</h3>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-top: 15px;">
+        `;
+
+		Object.entries(summary.epicsProgress).forEach(([status, count]) => {
+			const percentage =
+				summary.totalEpics > 0
+					? Math.round((count / summary.totalEpics) * 100)
+					: 0;
+			html += `
+                <div style="text-align: center;">
+                    <div style="font-weight: bold; margin-bottom: 5px;">${status}</div>
+                    <div style="font-size: 24px; color: ${getProgressColor(
+											percentage,
+										)};">${count}</div>
+                    <div style="font-size: 12px; color: #6c757d;">${percentage}%</div>
+                </div>
+            `;
+		});
+
+		html += `
+                </div>
+            </div>
+        `;
+	}
+
+	// Lista detalhada dos épicos
+	if (summary.epicsDetails && summary.epicsDetails.length > 0) {
+		html += `<h2 style="margin: 30px 0 20px 0; color: #495057;">📋 Detalhes dos Épicos</h2>`;
+
+		summary.epicsDetails.forEach((epic) => {
+			html += `
+                <div class="epic-item">
+                    <div class="epic-header">
+                        <div style="flex-grow: 1;">
+                            <h3 class="epic-title">
+                                ${
+																	epic.epicUrl !== '#'
+																		? `<a href="${epic.epicUrl}" style="color: #007bff; text-decoration: none;">#${epic.epicId}</a>`
+																		: `#${epic.epicId}`
+																}
+                                ${epic.epicTitle}
+                            </h3>
+                            <div class="epic-meta">
+                                Projeto: ${epic.projectStatus} | Prioridade: ${
+				epic.priority
+			}
+                            </div>
+                        </div>
+                        <span class="epic-status ${getStatusClass(
+													epic.status,
+												)}">${epic.status}</span>
+                    </div>
+
+                    <div style="margin: 15px 0;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                            <span style="font-weight: bold;">Progresso das Sub-issues</span>
+                            <span style="font-weight: bold; color: ${getProgressColor(
+															epic.completionRate,
+														)};">${epic.completionRate}%</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: ${
+															epic.completionRate
+														}%; background: ${getProgressColor(
+				epic.completionRate,
+			)};"></div>
+                        </div>
+                        <div style="font-size: 14px; color: #6c757d; margin-top: 5px;">
+                            ${epic.subIssuesCompleted} de ${
+				epic.subIssuesTotal
+			} sub-issues concluídas
+                            ${
+															epic.subIssuesRemaining > 0
+																? ` (${epic.subIssuesRemaining} restantes)`
+																: ''
+														}
+                        </div>
+                    </div>
+
+                    ${
+											epic.description
+												? `<div style="color: #6c757d; font-style: italic; margin: 10px 0;">${epic.description}</div>`
+												: ''
+										}
+
+                    ${
+											epic.assignees && epic.assignees.length > 0
+												? `
+                        <div>
+                            <strong style="font-size: 14px;">Responsáveis:</strong>
+                            <div class="assignees">
+                                ${epic.assignees
+																	.map(
+																		(assignee) =>
+																			`<span class="assignee">@${assignee}</span>`,
+																	)
+																	.join('')}
+                            </div>
+                        </div>
+                    `
+												: ''
+										}
+
+                    ${
+											epic.labels && epic.labels.length > 0
+												? `
+                        <div>
+                            <strong style="font-size: 14px;">Labels:</strong>
+                            <div class="labels">
+                                ${epic.labels
+																	.map(
+																		(label) =>
+																			`<span class="label">${label}</span>`,
+																	)
+																	.join('')}
+                            </div>
+                        </div>
+                    `
+												: ''
+										}
+
+                    <div style="margin-top: 15px; font-size: 12px; color: #868e96;">
+                        Criado: ${new Date(epic.createdAt).toLocaleDateString(
+													'pt-BR',
+												)} |
+                        Atualizado: ${new Date(
+													epic.updatedAt,
+												).toLocaleDateString('pt-BR')}
+                    </div>
+                </div>
+            `;
+		});
+	} else {
+		html += `
+            <div style="text-align: center; padding: 40px; color: #6c757d;">
+                <p>Nenhum épico encontrado no projeto.</p>
+            </div>
+        `;
+	}
+
+	// Rodapé
+	html += `
+            <div class="footer">
+                <p>Relatório gerado automaticamente em ${
+									summary.date
+										? new Date(summary.date).toLocaleString('pt-BR')
+										: new Date().toLocaleString('pt-BR')
+								}</p>
+                <p style="font-size: 12px; margin-top: 10px;">Este relatório analisa épicos com base em suas sub-issues e progresso.</p>
+            </div>
+        </div>
+    `;
+
 	return {
-		json: {
-			error: true,
-			message: 'Não foi possível obter os dados do processamento anterior',
-			inputStructure: JSON.stringify($input).substring(0, 500) + '...',
-		},
+		subject: `📊 Relatório de Épicos - ${summary.totalEpics} épicos (${
+			summary.statistics?.overallProgress || 0
+		}% concluído)`,
+		html: html,
 	};
 }
 
-// Formatar a data atual
-const dateOptions = {
-	weekday: 'long',
-	day: 'numeric',
-	month: 'long',
-	year: 'numeric',
-};
-const today = new Date();
-const formattedDate = today.toLocaleDateString('pt-BR', dateOptions);
+// Execução
+try {
+	let summary;
 
-// Criar estatísticas rápidas
-const quickStats = [];
-
-// Contador por status
-if (summary.statusCounts) {
-	const statusRows = Object.entries(summary.statusCounts)
-		.map(
-			([status, count]) =>
-				`<tr><td>${status}</td><td align="center"><b>${count}</b></td></tr>`,
-		)
-		.join('');
-
-	quickStats.push(`
-    <div class="stat-card">
-      <h3>Status</h3>
-      <table class="stats-table">
-        <tr><th>Status</th><th>Quantidade</th></tr>
-        ${statusRows}
-      </table>
-    </div>
-  `);
-}
-
-// Contador por prioridade
-if (summary.priorityCounts) {
-	const priorityRows = Object.entries(summary.priorityCounts)
-		.map(
-			([priority, count]) =>
-				`<tr><td>${priority}</td><td align="center"><b>${count}</b></td></tr>`,
-		)
-		.join('');
-
-	quickStats.push(`
-    <div class="stat-card">
-      <h3>Prioridade</h3>
-      <table class="stats-table">
-        <tr><th>Prioridade</th><th>Quantidade</th></tr>
-        ${priorityRows}
-      </table>
-    </div>
-  `);
-}
-
-// Contador por responsável
-if (summary.assigneeCounts) {
-	const assigneeRows = Object.entries(summary.assigneeCounts)
-		.map(
-			([assignee, count]) =>
-				`<tr><td>${assignee}</td><td align="center"><b>${count}</b></td></tr>`,
-		)
-		.join('');
-
-	quickStats.push(`
-    <div class="stat-card">
-      <h3>Responsáveis</h3>
-      <table class="stats-table">
-        <tr><th>Responsável</th><th>Quantidade</th></tr>
-        ${assigneeRows}
-      </table>
-    </div>
-  `);
-}
-
-// Contador por tipo de issue
-if (summary.issueTypeCounts) {
-	const typeRows = Object.entries(summary.issueTypeCounts)
-		.map(
-			([type, count]) =>
-				`<tr><td>${type}</td><td align="center"><b>${count}</b></td></tr>`,
-		)
-		.join('');
-
-	quickStats.push(`
-    <div class="stat-card">
-      <h3>Tipos de Issues</h3>
-      <table class="stats-table">
-        <tr><th>Tipo</th><th>Quantidade</th></tr>
-        ${typeRows}
-      </table>
-    </div>
-  `);
-}
-
-// Adicionar estatísticas de pontos estimados e entregues
-if (exists(summary.deliveredPoints) && exists(summary.pendingPoints)) {
-	quickStats.push(`
-    <div class="stat-card">
-      <h3>Progresso da Sprint</h3>
-      <table class="stats-table">
-        <tr><th>Métrica</th><th>Valor</th></tr>
-        <tr><td>Pontos Entregues</td><td align="center"><b>${summary.deliveredPoints}</b> (${summary.deliveredPercentage}%)</td></tr>
-        <tr><td>Pontos Pendentes</td><td align="center"><b>${summary.pendingPoints}</b> (${summary.pendingPercentage}%)</td></tr>
-        <tr><td>Total de Pontos</td><td align="center"><b>${summary.totalEstimatePoints}</b></td></tr>
-      </table>
-    </div>
-  `);
-}
-
-// Criar detalhes de cada status por assignee
-let statusDetails = '';
-
-// Se temos os dados detalhados dos responsáveis
-if (summary.assigneeDetails) {
-	statusDetails += '<h2>Detalhes por Responsável</h2>';
-
-	Object.entries(summary.assigneeDetails).forEach(([assignee, data]) => {
-		if (!data.issues || data.issues.length === 0) return;
-
-		statusDetails += `
-          <div class="status-section">
-            <h3>${assignee} <span class="count">(${data.issues.length} issues, ${data.totalEstimate} pontos)</span></h3>
-            <table class="issue-table">
-              <tr>
-                <th>Issue</th>
-                <th>Status</th>
-                <th>Prioridade</th>
-                <th>Estimativa</th>
-              </tr>
-        `;
-
-		// Listar issues do responsável
-		data.issues.forEach((issue) => {
-			// Verificar se é um objeto completo
-			if (!exists(issue) || !exists(issue.title)) {
-				return; // Pular issues incompletas
-			}
-
-			// Determinar a cor da linha baseada na prioridade
-			let rowClass = '';
-			if (issue.priority === 'P0') rowClass = 'priority-highest';
-			else if (issue.priority === 'P1') rowClass = 'priority-high';
-
-			// Adicionar linha da issue
-			statusDetails += `
-                <tr class="${rowClass}">
-                  <td><a href="${issue.url || '#'}" target="_blank">#${
-				issue.number || '?'
-			}: ${issue.title}</a></td>
-                  <td align="center">${issue.status || 'N/A'}</td>
-                  <td align="center">${issue.priority || 'N/A'}</td>
-                  <td align="center">${issue.estimate || 'N/A'}</td>
-                </tr>
-            `;
-		});
-
-		// Adicionar resumo de status
-		if (data.statusBreakdown) {
-			statusDetails += `
-                <tr class="status-summary">
-                  <td colspan="4">
-                    <strong>Resumo por Status:</strong>
-                    ${Object.entries(data.statusBreakdown)
-											.map(
-												([status, info]) =>
-													`${status}: ${info.count || 0} issues (${
-														info.points || 0
-													} pontos)`,
-											)
-											.join(', ')}
-                  </td>
-                </tr>
-            `;
+	// Verificar se está rodando no n8n ou localmente
+	if (typeof $input !== 'undefined') {
+		// Ambiente n8n
+		const inputData = $input.first()?.json;
+		if (!inputData) {
+			throw new Error('Nenhum dado de entrada fornecido');
 		}
-
-		statusDetails += `
-            </table>
-          </div>
-        `;
-	});
-}
-
-// Compatibilidade com o formato antigo, se disponível
-else if (summary.issuesByStatus) {
-	Object.entries(summary.issuesByStatus).forEach(([status, issues]) => {
-		// Pular se não houver issues
-		if (!issues || !issues.length) return;
-
-		// Cabeçalho do status
-		statusDetails += `
-      <div class="status-section">
-        <h2>${status} <span class="count">(${issues.length})</span></h2>
-        <table class="issue-table">
-          <tr>
-            <th>Issue</th>
-            <th>Prioridade</th>
-            <th>Estado</th>
-            <th>Responsáveis</th>
-            <th>Última atualização</th>
-          </tr>
-    `;
-
-		// Listar as issues
-		issues.forEach((issue) => {
-			// Verificar se é um objeto completo
-			if (!exists(issue) || !exists(issue.title)) {
-				return; // Pular issues incompletas
-			}
-
-			// Determinar a cor da linha baseada na prioridade
-			let rowClass = '';
-			if (issue.priority === 'P0') rowClass = 'priority-highest';
-			else if (issue.priority === 'P1') rowClass = 'priority-high';
-
-			// Formatar data de atualização
-			const updatedDate = exists(issue.updatedAt)
-				? new Date(issue.updatedAt).toLocaleDateString('pt-BR')
-				: 'N/A';
-
-			// Listar responsáveis
-			const assigneesList = Array.isArray(issue.assignees)
-				? issue.assignees.join(', ')
-				: '';
-
-			// Adicionar linha da issue
-			statusDetails += `
-        <tr class="${rowClass}">
-          <td><a href="${issue.url || '#'}" target="_blank">#${
-				issue.number || '?'
-			}: ${issue.title}</a></td>
-          <td align="center">${issue.priority || 'N/A'}</td>
-          <td align="center">${
-						issue.state === 'OPEN' ? 'Aberta' : 'Fechada'
-					}</td>
-          <td>${assigneesList}</td>
-          <td>${updatedDate}</td>
-        </tr>
-      `;
-		});
-
-		statusDetails += `
-        </table>
-      </div>
-    `;
-	});
-}
-
-// Montar o HTML final
-const emailHtml = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <title>Resumo da Sprint: ${summary.projectTitle || 'Interlis Board'}</title>
-  <style>
-    body {
-      font-family: Arial, Helvetica, sans-serif;
-      line-height: 1.6;
-      color: #333;
-      max-width: 1000px;
-      margin: 0 auto;
-      padding: 20px;
-    }
-
-    h1 {
-      color: #205375;
-      border-bottom: 2px solid #205375;
-      padding-bottom: 10px;
-      margin-bottom: 30px;
-    }
-
-    h2 {
-      color: #2C74B3;
-      margin-top: 30px;
-      padding-bottom: 5px;
-      border-bottom: 1px solid #ddd;
-    }
-
-    h3 {
-      color: #0A2647;
-      margin-top: 0;
-    }
-
-    .count {
-      font-size: 0.8em;
-      color: #666;
-      font-weight: normal;
-    }
-
-    .stats-container {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 20px;
-      margin-bottom: 30px;
-    }
-
-    .stat-card {
-      flex: 1;
-      min-width: 250px;
-      background-color: #f9f9f9;
-      border-radius: 8px;
-      padding: 15px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-
-    .stats-table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-
-    .stats-table th, .stats-table td {
-      padding: 8px;
-      text-align: left;
-      border-bottom: 1px solid #ddd;
-    }
-
-    .stats-table th {
-      background-color: #f2f2f2;
-    }
-
-    .status-section {
-      margin-bottom: 40px;
-    }
-
-    .issue-table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 10px;
-    }
-
-    .issue-table th, .issue-table td {
-      padding: 10px;
-      border: 1px solid #ddd;
-    }
-
-    .issue-table th {
-      background-color: #f2f2f2;
-      text-align: left;
-    }
-
-    .issue-table tr:nth-child(even) {
-      background-color: #f9f9f9;
-    }
-
-    .status-summary {
-      background-color: #eef6ff !important;
-      font-size: 0.9em;
-    }
-
-    .priority-highest {
-      background-color: #ffeeee !important;
-    }
-
-    .priority-high {
-      background-color: #fff8e1 !important;
-    }
-
-    a {
-      color: #2C74B3;
-      text-decoration: none;
-    }
-
-    a:hover {
-      text-decoration: underline;
-    }
-
-    .date {
-      font-style: italic;
-      color: #666;
-      margin-bottom: 30px;
-    }
-
-    .summary-box {
-      background-color: #e9f5ff;
-      border-left: 4px solid #2C74B3;
-      padding: 15px;
-      margin-bottom: 30px;
-    }
-
-    .sprint-info {
-      background-color: #f0f8ff;
-      border-radius: 8px;
-      padding: 15px;
-      margin-bottom: 30px;
-      border: 1px solid #d1e3ff;
-    }
-
-    .progress-bar-container {
-      background-color: #eee;
-      border-radius: 5px;
-      margin: 10px 0;
-      height: 20px;
-    }
-
-    .progress-bar {
-      height: 20px;
-      background-color: #2C74B3;
-      border-radius: 5px;
-      color: white;
-      text-align: center;
-      line-height: 20px;
-      font-size: 12px;
-      font-weight: bold;
-    }
-
-    .mini-progress-bar-container {
-      background-color: #eee;
-      border-radius: 3px;
-      margin: 0;
-      height: 15px;
-      width: 100%;
-    }
-
-    .mini-progress-bar {
-      height: 15px;
-      background-color: #4CAF50;
-      border-radius: 3px;
-      color: white;
-      text-align: center;
-      line-height: 15px;
-      font-size: 11px;
-      font-weight: bold;
-    }
-
-    .footer {
-      margin-top: 50px;
-      border-top: 1px solid #ddd;
-      padding-top: 20px;
-      color: #666;
-      font-size: 0.9em;
-      text-align: center;
-    }
-
-    .mini-progress-bar-container {
-      background-color: #eee;
-      border-radius: 5px;
-      height: 10px;
-      width: 100%;
-      margin: 5px 0;
-    }
-
-    .mini-progress-bar {
-      height: 10px;
-      background-color: #2C74B3;
-      border-radius: 5px;
-      color: white;
-      text-align: center;
-      line-height: 10px;
-      font-size: 10px;
-      font-weight: bold;
-    }
-  </style>
-</head>
-<body>
-  <h1>Resumo da Sprint: ${summary.projectTitle || 'Interlis Board'}</h1>
-  <p class="date">Relatório gerado em: ${formattedDate}</p>
-
-  ${
-		summary.currentSprint
-			? `
-  <div class="sprint-info">
-    <h3>Sprint ${summary.currentSprint.title}</h3>
-    <p><strong>Período:</strong> ${new Date(
-			summary.currentSprint.startDate,
-		).toLocaleDateString('pt-BR')} a ${new Date(
-					summary.currentSprint.endDate,
-			  ).toLocaleDateString('pt-BR')}</p>
-    <p><strong>Duração:</strong> ${summary.currentSprint.duration} dias</p>
-    <p><strong>Progresso:</strong></p>
-    <div class="progress-bar-container">
-      <div class="progress-bar" style="width: ${summary.deliveredPercentage}%">
-        ${summary.deliveredPercentage}% Completo
-      </div>
-    </div>
-  </div>
-  `
-			: ''
+		summary = inputData;
+	} else {
+		// Ambiente local - ler do arquivo de resultado
+		const fs = require('fs');
+		if (!fs.existsSync('epics_analysis_result.json')) {
+			throw new Error(
+				'Arquivo epics_analysis_result.json não encontrado! Execute process_data.js primeiro.',
+			);
+		}
+		const rawData = fs.readFileSync('epics_analysis_result.json', 'utf8');
+		summary = JSON.parse(rawData);
 	}
 
-  <div class="summary-box">
-    <p><strong>Total de issues:</strong> ${summary.totalIssues || 'N/A'}</p>
-    <p><strong>Issues abertas:</strong> ${summary.openIssues || 'N/A'}</p>
-    <p><strong>Issues fechadas:</strong> ${summary.closedIssues || 'N/A'}</p>
-    ${
-			summary.totalEstimatePoints
-				? `<p><strong>Total de pontos:</strong> ${summary.totalEstimatePoints}</p>`
-				: ''
-		}
-    ${
-			summary.deliveredPoints
-				? `<p><strong>Pontos entregues:</strong> ${summary.deliveredPoints} (${summary.deliveredPercentage}%)</p>`
-				: ''
-		}
-    ${
-			summary.pendingPoints
-				? `<p><strong>Pontos pendentes:</strong> ${summary.pendingPoints} (${summary.pendingPercentage}%)</p>`
-				: ''
-		}
-    ${
-			summary.bugCount
-				? `<p><strong>Total de bugs:</strong> ${summary.bugCount} (${summary.bugPercentage}% das issues)</p>`
-				: ''
-		}
-    ${
-			summary.deliveredBugCount
-				? `<p><strong>Bugs resolvidos:</strong> ${summary.deliveredBugCount} (Taxa de resolução: ${summary.bugResolutionRate}%)</p>`
-				: ''
-		}
-    ${
-			summary.pendingBugCount
-				? `<p><strong>Bugs pendentes:</strong> ${summary.pendingBugCount}</p>`
-				: ''
-		}
-  </div>
+	const emailContent = formatEpicsEmail(summary);
 
-  <div class="stats-container">
-    ${quickStats.join('')}
-  </div>
+	// Para ambiente local, exibir resultado
+	if (typeof module !== 'undefined' && module.exports) {
+		console.log('\n=== EMAIL FORMATADO ===');
+		console.log('Subject:', emailContent.subject);
+		console.log('\nHTML Content gerado com sucesso!');
+		console.log('Total de caracteres:', emailContent.html.length);
 
-  ${
-		summary.assigneeBugCounts &&
-		Object.keys(summary.assigneeBugCounts).length > 0
-			? `
-  <h2>Distribuição de Bugs por Responsável</h2>
-  <div class="stats-container">
-    <div class="stat-card" style="flex: 2; min-width: 400px;">
-      <h3>Contador de Bugs por Responsável</h3>
-      <table class="stats-table">
-        <tr>
-          <th>Responsável</th>
-          <th>Bugs</th>
-          <th>% de Bugs</th>
-          <th>Total Issues</th>
-        </tr>
-        ${Object.entries(summary.assigneeBugCounts)
-					.map(
-						([assignee, count]) => `
-          <tr>
-            <td>${assignee}</td>
-            <td align="center"><b>${count}</b></td>
-            <td align="center">${summary.assigneeBugRatio[assignee] || 0}%</td>
-            <td align="center">${summary.assigneeCounts[assignee] || 0}</td>
-          </tr>
-        `,
-					)
-					.join('')}
-      </table>
-    </div>
-  </div>
-  `
-			: ''
+		// Salvar HTML em arquivo para visualização
+		const fs = require('fs');
+		fs.writeFileSync('epic_report_email.html', emailContent.html);
+		console.log('Email HTML salvo em epic_report_email.html');
+
+		module.exports = emailContent;
+	} else {
+		// Ambiente n8n
+		return emailContent;
 	}
+} catch (error) {
+	console.error('Erro na formatação do email:', error.message);
 
-  ${
-		summary.assigneeEstimates &&
-		Object.keys(summary.assigneeEstimates).length > 0
-			? `
-  <h2>Progresso por Responsável</h2>
-  <div class="stats-container">
-    <div class="stat-card" style="flex: 2; min-width: 400px;">
-      <h3>Pontos por Responsável</h3>
-      <table class="stats-table">
-        <tr>
-          <th>Responsável</th>
-          <th>Pontos Entregues</th>
-          <th>Pontos Pendentes</th>
-          <th>Total Pontos</th>
-          <th>% Conclusão</th>
-        </tr>
-        ${Object.entries(summary.assigneeEstimates)
-					.filter(([_, data]) => data.total > 0)
-					.map(([assignee, data]) => {
-						const completionPercentage =
-							data.total > 0
-								? Math.round((data.delivered / data.total) * 100)
-								: 0;
-						return `
-          <tr>
-            <td>${assignee}</td>
-            <td align="center"><b>${data.delivered}</b></td>
-            <td align="center">${data.pending}</td>
-            <td align="center">${data.total}</td>
-            <td align="center">
-              <div class="mini-progress-bar-container">
-                <div class="mini-progress-bar" style="width: ${completionPercentage}%">
-                  ${completionPercentage}%
+	const errorEmail = {
+		subject: 'Erro no Relatório de Épicos',
+		html: `
+            <div style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px;">
+                <h1 style="color: #d32f2f;">❌ Erro no Relatório de Épicos</h1>
+                <p style="color: #666; font-size: 16px;">Ocorreu um erro ao formatar o relatório:</p>
+                <div style="background: #f5f5f5; padding: 15px; border-radius: 5px; font-family: monospace;">
+                    ${error.message}
                 </div>
-              </div>
-            </td>
-          </tr>
-          `;
-					})
-					.join('')}
-      </table>
-    </div>
-  </div>
-  `
-			: ''
+                <p style="color: #666; margin-top: 20px;">
+                    Verifique os dados de entrada e tente novamente.
+                </p>
+            </div>
+        `,
+	};
+
+	if (typeof module !== 'undefined' && module.exports) {
+		console.log(JSON.stringify(errorEmail, null, 2));
+		process.exit(1);
+	} else {
+		return errorEmail;
 	}
-
-  ${statusDetails}
-
-  <div class="footer">
-    <p>Este relatório é gerado automaticamente pela automação n8n.</p>
-  </div>
-</body>
-</html>
-`;
-
-// Retornar o HTML formatado e o assunto do email
-return {
-	json: {
-		emailHtml: emailHtml,
-		subject: `Relatório Diário da Sprint: ${
-			summary.projectTitle || 'Interlis Board'
-		} - ${today.toLocaleDateString('pt-BR')}`,
-	},
-};
+}
