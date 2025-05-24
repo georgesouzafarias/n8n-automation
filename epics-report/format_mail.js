@@ -63,6 +63,7 @@ function formatEpicsEmail(summary) {
 				return 'status-not-started';
 		}
 	}
+	const today = new Date();
 
 	// Início do HTML - usando tabelas para melhor compatibilidade com clientes de email
 	let html = `
@@ -369,7 +370,7 @@ function formatEpicsEmail(summary) {
 	`;
 
 	return {
-		subject: `📊 Relatório de Épicos`,
+		subject: `📊 Relatório de Épicos - ${today.toLocaleDateString('pt-BR')}`,
 		html: html,
 	};
 }
