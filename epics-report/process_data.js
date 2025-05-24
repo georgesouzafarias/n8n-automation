@@ -8,27 +8,6 @@ function exists(value) {
 }
 
 // Função para verificar se o título contém palavras-chave típicas de épicos
-function hasEpicKeywordsInTitle(title) {
-	if (!title) return false;
-	
-	const titleLower = title.toLowerCase();
-	const epicKeywords = [
-		'módulo', 'module', 
-		'sistema', 'system',
-		'plataforma', 'platform',
-		'framework',
-		'refatoração', 'refactoring',
-		'arquitetura', 'architecture',
-		'versão', 'version',
-		'implementação', 'implementation',
-		'integração', 'integration',
-		'migração', 'migration'
-	];
-	
-	return epicKeywords.some(keyword => titleLower.includes(keyword));
-}
-
-// Função para determinar o status do épico baseado no progresso
 function determineEpicStatus(subIssuesSummary) {
 	if (!subIssuesSummary || subIssuesSummary.total === 0) {
 		return 'Not Started';
@@ -46,36 +25,53 @@ function determineEpicStatus(subIssuesSummary) {
 // Função para identificar se uma issue é um épico
 function isEpic(issue) {
 	const issueTitle = issue.title || '';
-	
+
 	// Debug: exibir os campos disponíveis no issue
 	console.log(`\nVerificando issue #${issue.number}: ${issueTitle}`);
-	
+
 	// Vamos criar um conjunto de critérios para identificar épicos
 	let isEpicByType = false;
 	let isEpicByLabel = false;
-	let isEpicByTitle = false;
-	let isEpicBySubIssues = false;
+	let extractedIssueType = null;
+	
+	// Verificar se a issue tem um tipo explícito no campo issueType
+	if (issue.issueType && issue.issueType.name) {
+		console.log(`  Issue tem tipo explícito: ${issue.issueType.name}`);
+		extractedIssueType = issue.issueType.name;
+		
+		// Verificar se o tipo é Epic/Épico
+		if (issue.issueType.name.toLowerCase() === 'epic' || 
+		    issue.issueType.name.toLowerCase() === 'épico') {
+			isEpicByType = true;
+			console.log(`  ✓ Issue confirmada como Épico pelo tipo: ${issue.issueType.name}`);
+		} else {
+			console.log(`  ✗ Issue não é Épico (tipo: ${issue.issueType.name})`);
+			// Se o tipo está explicitamente definido como algo diferente de Epic, não é um épico
+			return { isEpic: false, issueType: extractedIssueType };
+		}
+	}
 	
 	// Verificação pelo tipo (se disponível nos campos)
-	if (issue.fieldValues && issue.fieldValues.nodes) {
+	if (!isEpicByType && issue.fieldValues && issue.fieldValues.nodes) {
 		const epicTypeField = issue.fieldValues.nodes.find(
 			(fieldValue) =>
 				fieldValue.field &&
-				(fieldValue.field.name === 'Type' || 
-				 fieldValue.field.name === 'Issue Type' || 
-				 fieldValue.field.name === 'Kind') &&
+				(fieldValue.field.name === 'Type' ||
+					fieldValue.field.name === 'Issue Type' ||
+					fieldValue.field.name === 'Kind') &&
 				fieldValue.name &&
-				(fieldValue.name.toLowerCase() === 'epic' || 
-				 fieldValue.name.toLowerCase() === 'épico')
+				(fieldValue.name.toLowerCase() === 'epic' ||
+					fieldValue.name.toLowerCase() === 'épico'),
 		);
-		
+
 		if (epicTypeField) {
 			isEpicByType = true;
-			console.log(`  ✓ Issue tem tipo Épico: ${epicTypeField.name}`);
+			extractedIssueType = epicTypeField.name;
+			console.log(`  ✓ Issue tem tipo Épico via campo: ${epicTypeField.name}`);
 		}
 	}
-
-	// Verifica labels que indicam explicitamente que é um épico
+	
+	// Verifica se a issue tem labels que indicam explicitamente que é um épico
 	if (issue.labels && issue.labels.nodes) {
 		const epicLabels = issue.labels.nodes.filter(
 			(label) =>
@@ -88,50 +84,25 @@ function isEpic(issue) {
 		if (epicLabels.length > 0) {
 			isEpicByLabel = true;
 			console.log(`  ✓ Issue tem label de épico: ${epicLabels.map(l => l.name).join(', ')}`);
+			if (!extractedIssueType) {
+				extractedIssueType = 'Épico'; // Se não temos tipo explícito, mas temos uma label de épico
+			}
 		}
 	}
 
-	// Verifica se o título indica explicitamente que é um épico
-	if (issue.title) {
-		const titleLower = issue.title.toLowerCase();
-		if (
-			titleLower.includes('[epic]') ||
-			titleLower.includes('epic:') ||
-			titleLower.startsWith('epic ') ||
-			titleLower.includes('[épico]') ||
-			titleLower.includes('épico:')
-		) {
-			isEpicByTitle = true;
-			console.log(`  ✓ Título indica épico: ${issue.title}`);
-		}
-	}
-
-	// Verificar se tem sub-issues significativas (mais de 2)
-	// Isso é um indicativo forte, mas não definitivo
-	if (issue.subIssuesSummary && issue.subIssuesSummary.total > 2) {
-		isEpicBySubIssues = true;
-		console.log(`  ✓ Issue tem múltiplas sub-issues (${issue.subIssuesSummary.total}): ${issue.title}`);
-	}
-	
 	// Critérios para decisão final:
 	// 1. Se tem tipo explícito de épico, é épico
 	// 2. Se tem label explícita de épico, é épico
-	// 3. Se o título indica explicitamente que é épico, é épico
-	// 4. Se tem 3 ou mais sub-issues E título com palavras-chave relacionadas a features amplas, é épico
-	
-	const isAnEpic = 
-		isEpicByType || 
-		isEpicByLabel || 
-		isEpicByTitle || 
-		(isEpicBySubIssues && hasEpicKeywordsInTitle(issue.title));
-	
+
+	const isAnEpic = isEpicByType || isEpicByLabel;
+
 	if (isAnEpic) {
 		console.log(`  ✓ Confirmado como épico: ${issue.title}`);
 	} else {
 		console.log(`  ✗ Não é épico: ${issue.title}`);
 	}
-	
-	return isAnEpic;
+
+	return { isEpic: isAnEpic, issueType: extractedIssueType };
 }
 
 // Função principal de processamento
@@ -170,13 +141,13 @@ function processEpicsData(items) {
 
 		const issue = item.content;
 
-		// Verifica se é um épico
-		const isEpicResult = isEpic(issue);
+		// Verifica se é um épico (agora retorna um objeto com isEpic e issueType)
+		const epicResult = isEpic(issue);
 		console.log(
-			`Item ${index} (${issue.title || 'sem título'}) é épico: ${isEpicResult}`,
+			`Item ${index} (${issue.title || 'sem título'}) é épico: ${epicResult.isEpic}`,
 		);
 
-		if (!isEpicResult) {
+		if (!epicResult.isEpic) {
 			itemsSkipped++;
 			return;
 		}
@@ -187,18 +158,26 @@ function processEpicsData(items) {
 		// Obter informações do status do projeto
 		let projectStatus = 'No Status';
 		let priority = 'No Priority';
-		let issueType = 'No Type';
+		let issueType = epicResult.issueType || 'No Type';  // Usar o tipo extraído da função isEpic
 
 		// Debug log para verificar os campos disponíveis
 		if (index === 0 && exists(item.fieldValues?.nodes)) {
-			console.log("Campos disponíveis no primeiro item:");
-			item.fieldValues.nodes.forEach(fieldValue => {
+			console.log('Campos disponíveis no primeiro item:');
+			item.fieldValues.nodes.forEach((fieldValue) => {
 				if (exists(fieldValue) && exists(fieldValue.field)) {
-					console.log(`  Campo: ${fieldValue.field.name}, Valor: ${fieldValue.name || fieldValue.title || fieldValue.date || 'sem valor'}`);
+					console.log(
+						`  Campo: ${fieldValue.field.name}, Valor: ${
+							fieldValue.name ||
+							fieldValue.title ||
+							fieldValue.date ||
+							'sem valor'
+						}`,
+					);
 				}
 			});
 		}
 
+		// Ainda verificar campos fieldValues para outros atributos como status e prioridade
 		if (exists(item.fieldValues?.nodes)) {
 			item.fieldValues.nodes.forEach((fieldValue) => {
 				if (!exists(fieldValue) || !exists(fieldValue.field)) return;
@@ -209,15 +188,35 @@ function processEpicsData(items) {
 				if (fieldValue.field.name === 'Priority' && exists(fieldValue.name)) {
 					priority = fieldValue.name;
 				}
-				// Verificar vários nomes possíveis para o campo tipo
-				if ((fieldValue.field.name === 'Type' || 
-				     fieldValue.field.name === 'Issue Type' || 
-				     fieldValue.field.name === 'Kind') && 
-				     exists(fieldValue.name)) {
+				// Verificar campo de tipo apenas se ainda não temos um tipo da função isEpic
+				if (
+					issueType === 'No Type' &&
+					(fieldValue.field.name === 'Type' ||
+						fieldValue.field.name === 'Issue Type' ||
+						fieldValue.field.name === 'Kind') &&
+					exists(fieldValue.name)
+				) {
 					issueType = fieldValue.name;
-					console.log(`Encontrado tipo "${issueType}" para issue: ${issue.title}`);
+					console.log(
+						`Encontrado tipo "${issueType}" para issue: ${issue.title}`,
+					);
 				}
 			});
+		}
+
+		// Verificar se a issue tem um tipo diretamente no conteúdo como última tentativa
+		if (issue.type && issueType === 'No Type') {
+			issueType = issue.type;
+			console.log(`Tipo encontrado diretamente na issue: ${issueType}`);
+		}
+
+		// Atribuímos o tipo "Épico" apenas se a função isEpic determinou que é um épico
+		// e não temos outro tipo
+		if (epicResult.isEpic && issueType === 'No Type') {
+			issueType = 'Épico';
+			console.log(
+				`Definindo tipo como Épico com base nos critérios rigorosos: ${issue.title}`,
+			);
 		}
 
 		// Determinar status do épico baseado no progresso das sub-issues
@@ -225,19 +224,6 @@ function processEpicsData(items) {
 
 		// Contabilizar por status
 		epicsByStatus[epicStatus] = (epicsByStatus[epicStatus] || 0) + 1;
-
-		// Verificar se a issue tem um tipo diretamente no conteúdo
-		if (issue.type && !issueType) {
-			issueType = issue.type;
-			console.log(`Tipo encontrado diretamente na issue: ${issueType}`);
-		}
-		
-		// Atribuímos o tipo "Épico" apenas se a função isEpic determinou que é um épico
-		// Esta é a grande mudança - apenas issues que passaram pelos critérios rigorosos serão marcados como épicos
-		if (isEpicResult && issueType === 'No Type') {
-			issueType = 'Épico';
-			console.log(`Definindo tipo como Épico com base nos critérios rigorosos: ${issue.title}`);
-		}
 
 		// Criar detalhes do épico
 		const epicDetail = {
@@ -247,7 +233,7 @@ function processEpicsData(items) {
 			status: epicStatus,
 			projectStatus: projectStatus,
 			priority: priority,
-			issueType: issueType,
+			issueType: issueType, // Agora issueType está sendo extraído corretamente do objeto issue.issueType
 			completionRate: issue.subIssuesSummary
 				? issue.subIssuesSummary.percentCompleted
 				: 0,
