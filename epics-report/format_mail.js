@@ -138,7 +138,7 @@ function formatEpicsEmail(summary) {
 												}</h3>
 												<div style="font-size: 32px; font-weight: bold; margin: 10px 0; color: ${
 													card.color
-												};">${card.value}%</div>
+												};">${card.value}</div>
 												${
 													card.subtext
 														? `<div style="font-size: 18px; color: #6c757d;">${card.subtext}</div>`
@@ -242,7 +242,7 @@ function formatEpicsEmail(summary) {
 													${epic.epicTitle}
 												</h3>
 												<div style="font-size: 14px; color: #6c757d; margin: 5px 0;">
-													Projeto: ${epic.projectStatus} | Prioridade: ${epic.priority}
+													Prioridade: ${epic.priority}
 												</div>
 											</td>
 											<td style="text-align: right; vertical-align: top; width: 100px;">
