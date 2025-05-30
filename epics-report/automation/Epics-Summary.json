@@ -1,0 +1,363 @@
+{
+  "name": "Epics Summary",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "=0 8 * * 1"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -160,
+        -40
+      ],
+      "id": "ab1b243c-bbb8-4840-9131-8ddfb30cc20f",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "sendTo": "george.farias@f4g.com.br",
+        "subject": "={{ $json.subject }}",
+        "message": "={{ $json.html }}",
+        "options": {
+          "ccList": "akaua.carvalho@f4g.com.br"
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1540,
+        -20
+      ],
+      "id": "4b62952f-e080-4cb2-9e00-9c1645b7b242",
+      "name": "Gmail",
+      "webhookId": "82406bf9-eace-4b1b-ad35-91f7b582c971",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "9eY5yubWIBMcDRl1",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const SOURCE_NODE_NAME = \"Get Data\"; // Nome do nó de origem\nconst MAX_ITERATIONS = 20; // Número máximo de iterações para prevenir loops infinitos\n\n// Array para armazenar todos os nós combinados\nlet allNodes = [];\nlet projectData = null;\nlet totalPagesProcessed = 0;\n\nconsole.log(`Iniciando coleta de dados de múltiplas execuções do nó: ${SOURCE_NODE_NAME}`);\n\n// Loop para coletar todas as saídas disponíveis\nlet iteration = 0;\nlet hasMoreData = true;\n\nwhile (hasMoreData && iteration < MAX_ITERATIONS) {\n  try {\n    // Tenta obter os dados da iteração atual\n    const pages = $items(SOURCE_NODE_NAME, 0, iteration);\n    \n    if (!pages || pages.length === 0) {\n      console.log(`Nenhum dado encontrado na iteração ${iteration}. Finalizando coleta.`);\n      hasMoreData = false;\n      continue;\n    }\n\n    console.log(`Processando dados da iteração ${iteration}. Encontrados ${pages.length} itens.`);\n    \n    // Processa cada item encontrado na iteração\n    for (const item of pages) {\n      // Verifica se temos os dados no formato esperado\n      const project = item.json?.data?.organization?.projectV2;\n      const nodes = project?.items?.nodes;\n      \n      if (project && nodes) {\n        // Se ainda não temos metadados do projeto, salvamos da primeira ocorrência válida\n        if (!projectData) {\n          projectData = project;\n          console.log(`Metadados do projeto obtidos: ${project.title} (ID: ${project.id})`);\n        }\n        \n        // Adiciona os nós encontrados ao array principal\n        console.log(`Adicionando ${nodes.length} novos itens ao conjunto de dados`);\n        allNodes.push(...nodes);\n        totalPagesProcessed++;\n      } else {\n        console.log(`Aviso: Formato de dados inesperado na iteração ${iteration}`);\n      }\n    }\n    \n    // Avança para a próxima iteração\n    iteration++;\n\n  } catch (error) {\n    // Se ocorrer um erro, significa que não há mais dados disponíveis\n    console.log(`Fim dos dados disponíveis após ${iteration} iterações. Erro: ${error.message}`);\n    hasMoreData = false;\n  }\n}\n\n// Verifica se conseguimos coletar algum dado\nif (!projectData || allNodes.length === 0) {\n  console.error(\"Erro: Nenhum dado válido foi encontrado em qualquer iteração\");\n  return [{\n    json: {\n      error: true,\n      message: \"Não foi possível coletar dados válidos\"\n    }\n  }];\n}\n\n// Estatísticas finais\nconsole.log(`Coleta de dados concluída:`);\nconsole.log(`- Total de iterações processadas: ${iteration}`);\nconsole.log(`- Total de páginas válidas: ${totalPagesProcessed}`);\nconsole.log(`- Total de itens coletados: ${allNodes.length}`);\nconsole.log(`- Dados do projeto: ${projectData.title} (ID: ${projectData.id})`);\n\n// Constrói o resultado final no formato esperado pelo process_data.js\nconst result = {\n  data: {\n    organization: {\n      projectV2: {\n        id: projectData.id,\n        title: projectData.title,\n        fields: projectData.fields,\n        items: {\n          nodes: allNodes,\n        },\n      },\n    },\n  },\n};\n\n// Retorna o resultado consolidado\nreturn [{ json: result }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        -20
+      ],
+      "id": "b959db42-9784-4120-aca6-2cd324f38aa1",
+      "name": "Combine Items",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "amount": 1
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        440,
+        -40
+      ],
+      "id": "75b95614-02c5-4d79-a280-53accd053756",
+      "name": "Wait",
+      "webhookId": "f025d0d0-b6c1-4fe8-a7ca-8f4e7edd3900"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "0e2e5b28-0ae4-4f67-9eb5-2a9d1523c712",
+              "leftValue": "={{ $json[\"data\"][\"organization\"][\"projectV2\"][\"items\"]['pageInfo']['hasNextPage'] }}",
+              "rightValue": "=true",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        640,
+        -40
+      ],
+      "id": "4a7606c4-8206-4cc0-bed6-b4f694853049",
+      "name": "Has new page?"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b49c3f98-b7ed-457d-863f-34af97f08861",
+              "name": "cursor",
+              "value": "={{$json[\"data\"][\"organization\"][\"projectV2\"][\"items\"][\"pageInfo\"][\"endCursor\"]}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        620,
+        -240
+      ],
+      "id": "b02a6e01-00a6-4eb9-8ae6-e5743c511fb6",
+      "name": "Set Next Page"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.github.com/graphql",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "githubApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"query\": \"query($organization: String!, $projectNumber: Int!, $afterCursor: String) { organization(login: $organization) { projectV2(number: $projectNumber) { id title fields(first: 20) { nodes { ... on ProjectV2Field { id name } ... on ProjectV2IterationField { id name configuration { completedIterations { id title startDate duration } iterations { id title startDate duration } duration startDay } } ... on ProjectV2SingleSelectField { id name options { id name } } } } items(first: 100, after: $afterCursor) { pageInfo { hasNextPage endCursor } nodes { id content { ... on Issue { title number state url labels(first: 10) { nodes { name } } assignees(first: 5) { nodes { login } } subIssuesSummary { completed percentCompleted total } issueType { id name description color } updatedAt createdAt } ... on PullRequest { title number state url assignees(first: 5) { nodes { login } } labels(first: 5) { nodes { name } } updatedAt createdAt } } fieldValues(first: 20) { nodes { ... on ProjectV2ItemFieldSingleSelectValue { name field { ... on ProjectV2FieldCommon { name } } } ... on ProjectV2ItemFieldDateValue { date field { ... on ProjectV2FieldCommon { name } } } ... on ProjectV2ItemFieldIterationValue { title startDate duration iterationId field { ... on ProjectV2FieldCommon { name } } } ... on ProjectV2ItemFieldTextValue { text field { ... on ProjectV2FieldCommon { name } } } ... on ProjectV2ItemFieldNumberValue { number field { ... on ProjectV2FieldCommon { name } } } } } } } } } } }\",\n  \"variables\": {\n    \"afterCursor\": \"{{ $json.cursor ? $json.cursor : null }}\",\n    \"organization\": \"{{ $(\"Set Params\").item.json.organization }}\",\n    \"projectNumber\": {{ Number($(\"Set Params\").item.json.projectNumber) }}\n  }\n}\n",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        -40
+      ],
+      "id": "aaee6f4a-9800-4af0-bf49-c654b8f287e5",
+      "name": "Get Data",
+      "executeOnce": false,
+      "credentials": {
+        "githubApi": {
+          "id": "leqgDcgVWMXdmn3K",
+          "name": "GitHub account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "09e4a75e-5f5b-4028-a2fe-0519040a560f",
+              "name": "organization",
+              "value": "Interlis",
+              "type": "string"
+            },
+            {
+              "id": "99fcf2c6-5207-4413-9910-d6add30b3a3f",
+              "name": "projectNumber",
+              "value": 3,
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        40,
+        -40
+      ],
+      "id": "8eeeb8e4-511d-411e-9aea-1178b4bea072",
+      "name": "Set Params"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Formatação de email para relatório de épicos\n// Este script formata os dados processados em um email HTML otimizado para Gmail\n\nfunction exists(value) {\n\treturn value !== null && value !== undefined && value !== '';\n}\n\nfunction formatEpicsEmail(summary) {\n\tif (!summary || summary.error) {\n\t\treturn {\n\t\t\tsubject: 'Erro no Relatório de Épicos',\n\t\t\thtml: `\n\t\t\t\t<div style=\"font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto;\">\n\t\t\t\t\t<h1 style=\"color: #d32f2f;\">Erro no Relatório de Épicos</h1>\n\t\t\t\t\t<p style=\"color: #666;\">${\n\t\t\t\t\t\tsummary?.message ||\n\t\t\t\t\t\t'Erro desconhecido ao processar dados dos épicos'\n\t\t\t\t\t}</p>\n\t\t\t\t</div>\n\t\t\t`,\n\t\t};\n\t}\n\n\t// CSS inline para melhor compatibilidade com clientes de email\n\tconst css = `\n\t\t<style type=\"text/css\">\n\t\t\tbody, div, p, h1, h2, h3 { margin: 0; padding: 0; }\n\t\t\tbody { font-family: Arial, sans-serif; line-height: 1.6; color: #333; background-color: #f7f7f7; }\n\t\t\t.container { max-width: 900px; margin: 0 auto; background-color: #ffffff; }\n\t\t\t.header { background: #667eea; color: white; padding: 30px; }\n\t\t\t.content { padding: 20px; }\n\t\t\t.stat-card { background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px; padding: 20px; margin-bottom: 20px; text-align: center; }\n\t\t\t.progress-bar { background: #e9ecef; border-radius: 10px; overflow: hidden; height: 20px; margin: 10px 0; }\n\t\t\t.progress-fill { height: 100%; transition: width 0.3s ease; }\n\t\t\t.epic-item { background: white; border: 1px solid #dee2e6; border-radius: 8px; margin: 15px 0; padding: 20px; }\n\t\t\t.epic-title { font-size: 18px; font-weight: bold; color: #212529; margin: 0; }\n\t\t\t.epic-status { padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; text-transform: uppercase; }\n\t\t\t.status-completed { background: #d4edda; color: #155724; }\n\t\t\t.status-in-progress { background: #fff3cd; color: #856404; }\n\t\t\t.status-not-started { background: #e2e3e5; color: #383d41; }\n\t\t\t.footer { background: #f8f9fa; padding: 20px; text-align: center; color: #6c757d; font-size: 14px; }\n\t\t\ttable { border-collapse: collapse; width: 100%; }\n\t\t\ttd { vertical-align: top; padding: 0; }\n\t\t</style>\n\t`;\n\n\t// Função para obter cor da barra de progresso\n\tfunction getProgressColor(percentage) {\n\t\tif (percentage >= 80) return '#28a745';\n\t\tif (percentage >= 50) return '#ffc107';\n\t\tif (percentage >= 20) return '#fd7e14';\n\t\treturn '#dc3545';\n\t}\n\n\t// Função para obter classe do status\n\tfunction getStatusClass(status) {\n\t\tswitch (status.toLowerCase()) {\n\t\t\tcase 'completed':\n\t\t\t\treturn 'status-completed';\n\t\t\tcase 'in progress':\n\t\t\t\treturn 'status-in-progress';\n\t\t\tdefault:\n\t\t\t\treturn 'status-not-started';\n\t\t}\n\t}\n\tconst today = new Date();\n\n\t// Início do HTML - usando tabelas para melhor compatibilidade com clientes de email\n\tlet html = `\n\t\t<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">\n\t\t<html xmlns=\"http://www.w3.org/1999/xhtml\">\n\t\t<head>\n\t\t\t<meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\" />\n\t\t\t<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"/>\n\t\t\t<title>Relatório de Status dos Épicos</title>\n\t\t\t${css}\n\t\t</head>\n\t\t<body style=\"margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f7f7f7;\">\n\t\t\t<table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"100%\" style=\"max-width: 900px; margin: 0 auto; background-color: #ffffff;\">\n\t\t\t\t<!-- Cabeçalho -->\n\t\t\t\t<tr>\n\t\t\t\t\t<td style=\"padding: 30px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;\">\n\t\t\t\t\t\t<h1 style=\"margin: 0; font-size: 28px;\">📊 Relatório de Status dos Épicos</h1>\n\t\t\t\t\t\t<div style=\"opacity: 0.9; margin-top: 10px;\">\n\t\t\t\t\t\t\t${summary.projectTitle || 'Projeto'} - ${\n\t\tsummary.generatedAt || new Date().toLocaleString('pt-BR')\n\t}\n\t\t\t\t\t\t</div>\n\t\t\t\t\t</td>\n\t\t\t\t</tr>\n\n\t\t\t\t<!-- Conteúdo -->\n\t\t\t\t<tr>\n\t\t\t\t\t<td style=\"padding: 20px;\">\n\t\t\t\t\t\t<!-- Cards de estatísticas -->\n\t\t\t\t\t\t<table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"100%\">\n\t\t\t\t\t\t\t<tr>\n\t`;\n\n\t// Cards de estatísticas\n\tconst statCards = [\n\t\t{\n\t\t\ttitle: 'Total de Épicos',\n\t\t\tvalue: summary.totalEpics,\n\t\t\tcolor: '#667eea',\n\t\t\t// Format to be more prominent like the other numbers\n\t\t\tformat: true,\n\t\t},\n\t\t{\n\t\t\ttitle: 'Taxa Média de Conclusão',\n\t\t\tvalue: `${summary.statistics?.averageCompletionRate || 0}%`,\n\t\t\tcolor: '#28a745',\n\t\t},\n\t\t{\n\t\t\ttitle: 'Progresso Geral',\n\t\t\tvalue: `${summary.statistics?.overallProgress || 0}%`,\n\t\t\tcolor: getProgressColor(summary.statistics?.overallProgress || 0),\n\t\t\thasProgress: true,\n\t\t\tprogress: summary.statistics?.overallProgress || 0,\n\t\t},\n\t\t{\n\t\t\ttitle: 'Sub-issues Totais',\n\t\t\tvalue: summary.statistics?.totalSubIssues || 0,\n\t\t\tsubtext: `${summary.statistics?.completedSubIssues || 0} concluídas`,\n\t\t\tcolor: '#6c757d',\n\t\t},\n\t];\n\n\t// Gerar HTML para cada card de estatística\n\tstatCards.forEach((card) => {\n\t\thtml += `\n\t\t\t\t\t\t\t\t<td width=\"25%\" style=\"padding: 10px;\">\n\t\t\t\t\t\t\t\t\t<table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"100%\" style=\"background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px; text-align: center;\">\n\t\t\t\t\t\t\t\t\t\t<tr>\n\t\t\t\t\t\t\t\t\t\t\t<td style=\"padding: 20px;\">\n\t\t\t\t\t\t\t\t\t\t\t\t<h3 style=\"margin: 0 0 10px 0; color: #495057; font-size: 14px; text-transform: uppercase;\">${\n\t\t\t\t\t\t\t\t\t\t\t\t\tcard.title\n\t\t\t\t\t\t\t\t\t\t\t\t}</h3>\n\t\t\t\t\t\t\t\t\t\t\t\t<div style=\"font-size: 32px; font-weight: bold; margin: 10px 0; color: ${\n\t\t\t\t\t\t\t\t\t\t\t\t\tcard.color\n\t\t\t\t\t\t\t\t\t\t\t\t};\">${card.value}%</div>\n\t\t\t\t\t\t\t\t\t\t\t\t${\n\t\t\t\t\t\t\t\t\t\t\t\t\tcard.subtext\n\t\t\t\t\t\t\t\t\t\t\t\t\t\t? `<div style=\"font-size: 18px; color: #6c757d;\">${card.subtext}</div>`\n\t\t\t\t\t\t\t\t\t\t\t\t\t\t: ''\n\t\t\t\t\t\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\t\t\t\t\t\t${\n\t\t\t\t\t\t\t\t\t\t\t\t\tcard.hasProgress\n\t\t\t\t\t\t\t\t\t\t\t\t\t\t? `\n\t\t\t\t\t\t\t\t\t\t\t\t\t<div style=\"background: #e9ecef; border-radius: 10px; overflow: hidden; height: 20px; margin: 10px 0;\">\n\t\t\t\t\t\t\t\t\t\t\t\t\t\t<div style=\"width: ${card.progress}%; background: ${card.color}; height: 100%;\"></div>\n\t\t\t\t\t\t\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t\t\t\t\t\t\t`\n\t\t\t\t\t\t\t\t\t\t\t\t\t\t: ''\n\t\t\t\t\t\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\t\t\t\t\t</td>\n\t\t\t\t\t\t\t\t\t\t</tr>\n\t\t\t\t\t\t\t\t\t</table>\n\t\t\t\t\t\t\t\t</td>\n\t\t`;\n\t});\n\n\thtml += `\n\t\t\t\t\t\t\t</tr>\n\t\t\t\t\t\t</table>\n\t`;\n\n\t// Distribuição por status\n\tif (summary.epicsProgress && Object.keys(summary.epicsProgress).length > 0) {\n\t\thtml += `\n\t\t\t\t\t\t<table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"100%\" style=\"margin: 20px 0; background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px;\">\n\t\t\t\t\t\t\t<tr>\n\t\t\t\t\t\t\t\t<td style=\"padding: 20px;\">\n\t\t\t\t\t\t\t\t\t<h3 style=\"margin: 0 0 15px 0; color: #495057; font-size: 16px; text-transform: uppercase; text-align: center;\">Distribuição por Status</h3>\n\t\t\t\t\t\t\t\t\t<table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"100%\">\n\t\t\t\t\t\t\t\t\t\t<tr>\n\t\t`;\n\n\t\t// Calcular largura para cada status\n\t\tconst statusCount = Object.keys(summary.epicsProgress).length;\n\t\tconst columnWidth = 100 / statusCount;\n\n\t\tObject.entries(summary.epicsProgress).forEach(([status, count]) => {\n\t\t\tconst percentage =\n\t\t\t\tsummary.totalEpics > 0\n\t\t\t\t\t? Math.round((count / summary.totalEpics) * 100)\n\t\t\t\t\t: 0;\n\n\t\t\t// Define specific colors for each status\n\t\t\tlet statusColor;\n\t\t\t// Replace spaces with non-breaking spaces in status\n\t\t\tconst formattedStatus = status.replace(' ', '\\u00A0');\n\t\t\tif (status.toLowerCase() === 'completed') {\n\t\t\t\tstatusColor = '#28a745'; // Green for completed\n\t\t\t} else if (status.toLowerCase() === 'in progress') {\n\t\t\t\tstatusColor = '#ffc107'; // Yellow for in progress\n\t\t\t} else if (status.toLowerCase() === 'not started') {\n\t\t\t\tstatusColor = '#6c757d'; // Gray for not started\n\t\t\t} else {\n\t\t\t\tstatusColor = getProgressColor(percentage); // Fallback\n\t\t\t}\n\n\t\t\thtml += `\n\t\t\t\t\t\t\t\t\t\t\t<td width=\"${columnWidth}%\" style=\"padding: 5px; text-align: center;\">\n\t\t\t\t\t\t\t\t\t\t\t\t<div style=\"font-weight: bold; margin-bottom: 5px;\">${formattedStatus}</div>\n\t\t\t\t\t\t\t\t\t\t\t\t<div style=\"font-size: 24px; color: ${statusColor};\">${count}</div>\n\t\t\t\t\t\t\t\t\t\t\t\t<div style=\"font-size: 12px; color: #6c757d;\">${percentage}%</div>\n\t\t\t\t\t\t\t\t\t\t\t</td>\n\t\t\t`;\n\t\t});\n\n\t\thtml += `\n\t\t\t\t\t\t\t\t\t\t</tr>\n\t\t\t\t\t\t\t\t\t</table>\n\t\t\t\t\t\t\t\t</td>\n\t\t\t\t\t\t\t</tr>\n\t\t\t\t\t\t</table>\n\t\t`;\n\t}\n\n\t// Lista detalhada dos épicos\n\tif (summary.epicsDetails && summary.epicsDetails.length > 0) {\n\t\thtml += `\n\t\t\t\t\t\t<h2 style=\"margin: 30px 0 20px 0; color: #495057;\">📋 Detalhes dos Épicos</h2>\n\t\t`;\n\n\t\tsummary.epicsDetails.forEach((epic) => {\n\t\t\thtml += `\n\t\t\t\t\t\t<table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"100%\" style=\"background: white; border: 1px solid #dee2e6; border-radius: 8px; margin: 15px 0;\">\n\t\t\t\t\t\t\t<tr>\n\t\t\t\t\t\t\t\t<td style=\"padding: 20px;\">\n\t\t\t\t\t\t\t\t\t<!-- Cabeçalho do épico -->\n\t\t\t\t\t\t\t\t\t<table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"100%\">\n\t\t\t\t\t\t\t\t\t\t<tr>\n\t\t\t\t\t\t\t\t\t\t\t<td style=\"vertical-align: top;\">\n\t\t\t\t\t\t\t\t\t\t\t\t<h3 style=\"font-size: 18px; font-weight: bold; color: #212529; margin: 0;\">\n\t\t\t\t\t\t\t\t\t\t\t\t\t${\n\t\t\t\t\t\t\t\t\t\t\t\t\t\tepic.epicUrl !== '#'\n\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t? `<a href=\"${epic.epicUrl}\" style=\"color: #007bff; text-decoration: none;\">#${epic.epicId}</a>`\n\t\t\t\t\t\t\t\t\t\t\t\t\t\t\t: `#${epic.epicId}`\n\t\t\t\t\t\t\t\t\t\t\t\t\t}\n\t\t\t\t\t\t\t\t\t\t\t\t\t${epic.epicTitle}\n\t\t\t\t\t\t\t\t\t\t\t\t</h3>\n\t\t\t\t\t\t\t\t\t\t\t\t<div style=\"font-size: 14px; color: #6c757d; margin: 5px 0;\">\n\t\t\t\t\t\t\t\t\t\t\t\t\tProjeto: ${epic.projectStatus} | Prioridade: ${epic.priority}\n\t\t\t\t\t\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t\t\t\t\t\t</td>\n\t\t\t\t\t\t\t\t\t\t\t<td style=\"text-align: right; vertical-align: top; width: 100px;\">\n\t\t\t\t\t\t\t\t\t\t\t\t<span style=\"padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; text-transform: uppercase; background: ${\n\t\t\t\t\t\t\t\t\t\t\t\t\tepic.status.toLowerCase() === 'completed'\n\t\t\t\t\t\t\t\t\t\t\t\t\t\t? '#d4edda'\n\t\t\t\t\t\t\t\t\t\t\t\t\t\t: epic.status.toLowerCase() === 'in progress'\n\t\t\t\t\t\t\t\t\t\t\t\t\t\t? '#fff3cd'\n\t\t\t\t\t\t\t\t\t\t\t\t\t\t: '#e2e3e5'\n\t\t\t\t\t\t\t\t\t\t\t\t}; color: ${\n\t\t\t\tepic.status.toLowerCase() === 'completed'\n\t\t\t\t\t? '#155724'\n\t\t\t\t\t: epic.status.toLowerCase() === 'in progress'\n\t\t\t\t\t? '#856404'\n\t\t\t\t\t: '#383d41'\n\t\t\t};\">${epic.status.replace(' ', '\\u00A0')}</span>\n\t\t\t\t\t\t\t\t\t\t\t</td>\n\t\t\t\t\t\t\t\t\t\t</tr>\n\t\t\t\t\t\t\t\t\t</table>\n\n\t\t\t\t\t\t\t\t\t<!-- Progresso das sub-issues -->\n\t\t\t\t\t\t\t\t\t<table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"100%\" style=\"margin: 15px 0;\">\n\t\t\t\t\t\t\t\t\t\t<tr>\n\t\t\t\t\t\t\t\t\t\t\t<td style=\"padding-bottom: 5px;\">\n\t\t\t\t\t\t\t\t\t\t\t\t<table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"100%\">\n\t\t\t\t\t\t\t\t\t\t\t\t\t<tr>\n\t\t\t\t\t\t\t\t\t\t\t\t\t\t<td style=\"font-weight: bold;\">Progresso das Sub-issues</td>\n\t\t\t\t\t\t\t\t\t\t\t\t\t\t<td style=\"text-align: right; font-weight: bold; color: ${getProgressColor(\n\t\t\t\t\t\t\t\t\t\t\t\t\t\t\tepic.completionRate,\n\t\t\t\t\t\t\t\t\t\t\t\t\t\t)};\">${epic.completionRate}%</td>\n\t\t\t\t\t\t\t\t\t\t\t\t\t</tr>\n\t\t\t\t\t\t\t\t\t\t\t\t</table>\n\t\t\t\t\t\t\t\t\t\t\t</td>\n\t\t\t\t\t\t\t\t\t\t</tr>\n\t\t\t\t\t\t\t\t\t\t<tr>\n\t\t\t\t\t\t\t\t\t\t\t<td>\n\t\t\t\t\t\t\t\t\t\t\t\t<div style=\"background: #e9ecef; border-radius: 10px; overflow: hidden; height: 20px;\">\n\t\t\t\t\t\t\t\t\t\t\t\t\t<div style=\"width: ${epic.completionRate}%; background: ${getProgressColor(\n\t\t\t\tepic.completionRate,\n\t\t\t)}; height: 100%;\"></div>\n\t\t\t\t\t\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t\t\t\t\t\t\t<div style=\"font-size: 14px; color: #6c757d; margin-top: 5px;\">\n\t\t\t\t\t\t\t\t\t\t\t\t\t${epic.subIssuesCompleted} de ${epic.subIssuesTotal} sub-issues concluídas\n\t\t\t\t\t\t\t\t\t\t\t\t\t${epic.subIssuesRemaining > 0 ? ` (${epic.subIssuesRemaining} restantes)` : ''}\n\t\t\t\t\t\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t\t\t\t\t\t</td>\n\t\t\t\t\t\t\t\t\t\t</tr>\n\t\t\t\t\t\t\t\t\t</table>\n\t\t\t`;\n\n\t\t\t// Descrição (se existir)\n\t\t\tif (epic.description) {\n\t\t\t\thtml += `\n\t\t\t\t\t\t\t\t\t<div style=\"color: #6c757d; font-style: italic; margin: 10px 0;\">\n\t\t\t\t\t\t\t\t\t\t${epic.description}\n\t\t\t\t\t\t\t\t\t</div>\n\t\t\t\t`;\n\t\t\t}\n\n\t\t\t// Responsáveis (se existirem)\n\t\t\tif (epic.assignees && epic.assignees.length > 0) {\n\t\t\t\thtml += `\n\t\t\t\t\t\t\t\t\t<div style=\"margin: 10px 0;\">\n\t\t\t\t\t\t\t\t\t\t<strong style=\"font-size: 14px;\">Responsáveis:</strong>\n\t\t\t\t\t\t\t\t\t\t<div style=\"margin-top: 5px;\">\n\t\t\t\t`;\n\n\t\t\t\tepic.assignees.forEach((assignee) => {\n\t\t\t\t\thtml += `\n\t\t\t\t\t\t\t\t\t\t\t<span style=\"display: inline-block; background: #e9ecef; padding: 2px 8px; border-radius: 12px; font-size: 12px; margin-right: 5px; margin-bottom: 5px;\">@${assignee}</span>\n\t\t\t\t\t`;\n\t\t\t\t});\n\n\t\t\t\thtml += `\n\t\t\t\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t\t\t\t</div>\n\t\t\t\t`;\n\t\t\t}\n\n\t\t\t// Labels (se existirem)\n\t\t\tif (epic.labels && epic.labels.length > 0) {\n\t\t\t\thtml += `\n\t\t\t\t\t\t\t\t\t<div style=\"margin: 10px 0;\">\n\t\t\t\t\t\t\t\t\t\t<strong style=\"font-size: 14px;\">Labels:</strong>\n\t\t\t\t\t\t\t\t\t\t<div style=\"margin-top: 5px;\">\n\t\t\t\t`;\n\n\t\t\t\tepic.labels.forEach((label) => {\n\t\t\t\t\thtml += `\n\t\t\t\t\t\t\t\t\t\t\t<span style=\"display: inline-block; background: #6f42c1; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-right: 5px; margin-bottom: 5px;\">${label}</span>\n\t\t\t\t\t`;\n\t\t\t\t});\n\n\t\t\t\thtml += `\n\t\t\t\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t\t\t\t</div>\n\t\t\t\t`;\n\t\t\t}\n\n\t\t\t// Datas de criação/atualização\n\t\t\thtml += `\n\t\t\t\t\t\t\t\t\t<div style=\"margin-top: 15px; font-size: 12px; color: #868e96;\">\n\t\t\t\t\t\t\t\t\t\tCriado: ${new Date(epic.createdAt).toLocaleDateString('pt-BR')} |\n\t\t\t\t\t\t\t\t\t\tAtualizado: ${new Date(epic.updatedAt).toLocaleDateString('pt-BR')}\n\t\t\t\t\t\t\t\t\t</div>\n\t\t\t\t\t\t\t\t</td>\n\t\t\t\t\t\t\t</tr>\n\t\t\t\t\t\t</table>\n\t\t\t`;\n\t\t});\n\t} else {\n\t\thtml += `\n\t\t\t\t\t\t<table border=\"0\" cellpadding=\"0\" cellspacing=\"0\" width=\"100%\" style=\"margin: 40px 0;\">\n\t\t\t\t\t\t\t<tr>\n\t\t\t\t\t\t\t\t<td style=\"text-align: center; padding: 40px; color: #6c757d;\">\n\t\t\t\t\t\t\t\t\t<p>Nenhum épico encontrado no projeto.</p>\n\t\t\t\t\t\t\t\t</td>\n\t\t\t\t\t\t\t</tr>\n\t\t\t\t\t\t</table>\n\t\t`;\n\t}\n\n\t// Rodapé\n\thtml += `\n\t\t\t\t\t</td>\n\t\t\t\t</tr>\n\t\t\t\t<tr>\n\t\t\t\t\t<td style=\"background: #f8f9fa; padding: 20px; text-align: center; color: #6c757d; font-size: 14px;\">\n\t\t\t\t\t\t<p>Relatório gerado automaticamente em ${\n\t\t\t\t\t\t\tsummary.date\n\t\t\t\t\t\t\t\t? new Date(summary.date).toLocaleString('pt-BR')\n\t\t\t\t\t\t\t\t: new Date().toLocaleString('pt-BR')\n\t\t\t\t\t\t}</p>\n\t\t\t\t\t\t<p style=\"font-size: 12px; margin-top: 10px;\">Este relatório analisa épicos com base em suas sub-issues e progresso.</p>\n\t\t\t\t\t</td>\n\t\t\t\t</tr>\n\t\t\t</table>\n\t\t</body>\n\t\t</html>\n\t`;\n\n\treturn {\n\t\tsubject: `📊 Relatório de Épicos - ${today.toLocaleDateString('pt-BR')}`,\n\t\thtml: html,\n\t};\n}\n\n// Execução\ntry {\n\tlet summary;\n\n\t// Verificar se está rodando no n8n ou localmente\n\tif (typeof $input !== 'undefined') {\n\t\t// Ambiente n8n\n\t\tconst inputData = $input.first()?.json;\n\t\tif (!inputData) {\n\t\t\tthrow new Error('Nenhum dado de entrada fornecido');\n\t\t}\n\t\tsummary = inputData;\n\t} else {\n\t\t// Ambiente local - ler do arquivo de resultado\n\t\tconst fs = require('fs');\n\t\tif (!fs.existsSync('epics_analysis_result.json')) {\n\t\t\tthrow new Error(\n\t\t\t\t'Arquivo epics_analysis_result.json não encontrado! Execute process_data.js primeiro.',\n\t\t\t);\n\t\t}\n\t\tconst rawData = fs.readFileSync('epics_analysis_result.json', 'utf8');\n\t\tsummary = JSON.parse(rawData);\n\t}\n\n\tconst emailContent = formatEpicsEmail(summary);\n\n\t// Para ambiente local, exibir resultado\n\tif (typeof module !== 'undefined' && module.exports) {\n\t\tconsole.log('\\n=== EMAIL FORMATADO ===');\n\t\tconsole.log('Subject:', emailContent.subject);\n\t\tconsole.log('\\nHTML Content gerado com sucesso!');\n\t\tconsole.log('Total de caracteres:', emailContent.html.length);\n\n\t\t// Salvar HTML em arquivo para visualização\n\t\tconst fs = require('fs');\n\t\tfs.writeFileSync('epic_report_email.html', emailContent.html);\n\t\tconsole.log('Email HTML salvo em epic_report_email.html');\n\n\t\tmodule.exports = emailContent;\n\t} else {\n\t\t// Ambiente n8n\n\t\treturn emailContent;\n\t}\n} catch (error) {\n\tconsole.error('Erro na formatação do email:', error.message);\n\n\tconst errorEmail = {\n\t\tsubject: 'Erro no Relatório de Épicos',\n\t\thtml: `\n\t\t\t<div style=\"font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px;\">\n\t\t\t\t<h1 style=\"color: #d32f2f;\">❌ Erro no Relatório de Épicos</h1>\n\t\t\t\t<p style=\"color: #666; font-size: 16px;\">Ocorreu um erro ao formatar o relatório:</p>\n\t\t\t\t<div style=\"background: #f5f5f5; padding: 15px; border-radius: 5px; font-family: monospace;\">\n\t\t\t\t\t${error.message}\n\t\t\t\t</div>\n\t\t\t\t<p style=\"color: #666; margin-top: 20px;\">\n\t\t\t\t\tVerifique os dados de entrada e tente novamente.\n\t\t\t\t</p>\n\t\t\t</div>\n\t\t`,\n\t};\n\n\tif (typeof module !== 'undefined' && module.exports) {\n\t\tconsole.log(JSON.stringify(errorEmail, null, 2));\n\t\tprocess.exit(1);\n\t} else {\n\t\treturn errorEmail;\n\t}\n}\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        -20
+      ],
+      "id": "cc2b6896-3f28-44d7-a54b-073a22d73324",
+      "name": "format_mail"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Verifica se é ambiente local ou n8n\nconst isLocalRun =\n\ttypeof module !== 'undefined' && module.exports && require.main === module;\n\n// Função para verificar se um valor existe\nfunction exists(value) {\n\treturn value !== null && value !== undefined && value !== '';\n}\n\n// Função para verificar se o título contém palavras-chave típicas de épicos\nfunction determineEpicStatus(subIssuesSummary) {\n\tif (!subIssuesSummary || subIssuesSummary.total === 0) {\n\t\treturn 'Not Started';\n\t}\n\n\tif (subIssuesSummary.percentCompleted === 100) {\n\t\treturn 'Completed';\n\t} else if (subIssuesSummary.percentCompleted > 0) {\n\t\treturn 'In Progress';\n\t}\n\n\treturn 'Not Started';\n}\n\n// Função para identificar se uma issue é um épico\nfunction isEpic(issue) {\n\tconst issueTitle = issue.title || '';\n\n\t// Debug: exibir os campos disponíveis no issue\n\tconsole.log(`\\nVerificando issue #${issue.number}: ${issueTitle}`);\n\n\t// Vamos criar um conjunto de critérios para identificar épicos\n\tlet isEpicByType = false;\n\tlet isEpicByLabel = false;\n\tlet extractedIssueType = null;\n\t\n\t// Verificar se a issue tem um tipo explícito no campo issueType\n\tif (issue.issueType && issue.issueType.name) {\n\t\tconsole.log(`  Issue tem tipo explícito: ${issue.issueType.name}`);\n\t\textractedIssueType = issue.issueType.name;\n\t\t\n\t\t// Verificar se o tipo é Epic/Épico\n\t\tif (issue.issueType.name.toLowerCase() === 'epic' || \n\t\t    issue.issueType.name.toLowerCase() === 'épico') {\n\t\t\tisEpicByType = true;\n\t\t\tconsole.log(`  ✓ Issue confirmada como Épico pelo tipo: ${issue.issueType.name}`);\n\t\t} else {\n\t\t\tconsole.log(`  ✗ Issue não é Épico (tipo: ${issue.issueType.name})`);\n\t\t\t// Se o tipo está explicitamente definido como algo diferente de Epic, não é um épico\n\t\t\treturn { isEpic: false, issueType: extractedIssueType };\n\t\t}\n\t}\n\t\n\t// Verificação pelo tipo (se disponível nos campos)\n\tif (!isEpicByType && issue.fieldValues && issue.fieldValues.nodes) {\n\t\tconst epicTypeField = issue.fieldValues.nodes.find(\n\t\t\t(fieldValue) =>\n\t\t\t\tfieldValue.field &&\n\t\t\t\t(fieldValue.field.name === 'Type' ||\n\t\t\t\t\tfieldValue.field.name === 'Issue Type' ||\n\t\t\t\t\tfieldValue.field.name === 'Kind') &&\n\t\t\t\tfieldValue.name &&\n\t\t\t\t(fieldValue.name.toLowerCase() === 'epic' ||\n\t\t\t\t\tfieldValue.name.toLowerCase() === 'épico'),\n\t\t);\n\n\t\tif (epicTypeField) {\n\t\t\tisEpicByType = true;\n\t\t\textractedIssueType = epicTypeField.name;\n\t\t\tconsole.log(`  ✓ Issue tem tipo Épico via campo: ${epicTypeField.name}`);\n\t\t}\n\t}\n\t\n\t// Verifica se a issue tem labels que indicam explicitamente que é um épico\n\tif (issue.labels && issue.labels.nodes) {\n\t\tconst epicLabels = issue.labels.nodes.filter(\n\t\t\t(label) =>\n\t\t\t\tlabel.name &&\n\t\t\t\t(label.name.toLowerCase() === 'epic' ||\n\t\t\t\t label.name.toLowerCase() === 'épico' ||\n\t\t\t\t label.name.toLowerCase() === 'epic-issue')\n\t\t);\n\t\t\n\t\tif (epicLabels.length > 0) {\n\t\t\tisEpicByLabel = true;\n\t\t\tconsole.log(`  ✓ Issue tem label de épico: ${epicLabels.map(l => l.name).join(', ')}`);\n\t\t\tif (!extractedIssueType) {\n\t\t\t\textractedIssueType = 'Épico'; // Se não temos tipo explícito, mas temos uma label de épico\n\t\t\t}\n\t\t}\n\t}\n\n\t// Critérios para decisão final:\n\t// 1. Se tem tipo explícito de épico, é épico\n\t// 2. Se tem label explícita de épico, é épico\n\n\tconst isAnEpic = isEpicByType || isEpicByLabel;\n\n\tif (isAnEpic) {\n\t\tconsole.log(`  ✓ Confirmado como épico: ${issue.title}`);\n\t} else {\n\t\tconsole.log(`  ✗ Não é épico: ${issue.title}`);\n\t}\n\n\treturn { isEpic: isAnEpic, issueType: extractedIssueType };\n}\n\n// Função principal de processamento\nfunction processEpicsData(items) {\n\tconsole.log(`Processando ${items.length} itens para análise de épicos...`);\n\n\tif (items.length > 0) {\n\t\tconsole.log(\n\t\t\t'Estrutura do primeiro item:',\n\t\t\tJSON.stringify(items[0], null, 2),\n\t\t);\n\t}\n\n\tconst epicsByStatus = {};\n\tconst epicsDetails = [];\n\tlet totalEpics = 0;\n\tlet itemsProcessed = 0;\n\tlet itemsSkipped = 0;\n\n\t// Processar cada item\n\titems.forEach((item, index) => {\n\t\titemsProcessed++;\n\n\t\t// Pula itens sem conteúdo\n\t\tif (!exists(item)) {\n\t\t\tconsole.log(`Item ${index} é null/undefined`);\n\t\t\titemsSkipped++;\n\t\t\treturn;\n\t\t}\n\n\t\tif (!exists(item.content)) {\n\t\t\tconsole.log(`Item ${index} não tem content:`, Object.keys(item));\n\t\t\titemsSkipped++;\n\t\t\treturn;\n\t\t}\n\n\t\tconst issue = item.content;\n\n\t\t// Verifica se é um épico (agora retorna um objeto com isEpic e issueType)\n\t\tconst epicResult = isEpic(issue);\n\t\tconsole.log(\n\t\t\t`Item ${index} (${issue.title || 'sem título'}) é épico: ${epicResult.isEpic}`,\n\t\t);\n\n\t\tif (!epicResult.isEpic) {\n\t\t\titemsSkipped++;\n\t\t\treturn;\n\t\t}\n\n\t\ttotalEpics++;\n\t\tconsole.log(`Épico encontrado: ${issue.title}`);\n\n\t\t// Obter informações do status do projeto\n\t\tlet projectStatus = 'No Status';\n\t\tlet priority = 'No Priority';\n\t\tlet issueType = epicResult.issueType || 'No Type';  // Usar o tipo extraído da função isEpic\n\n\t\t// Debug log para verificar os campos disponíveis\n\t\tif (index === 0 && exists(item.fieldValues?.nodes)) {\n\t\t\tconsole.log('Campos disponíveis no primeiro item:');\n\t\t\titem.fieldValues.nodes.forEach((fieldValue) => {\n\t\t\t\tif (exists(fieldValue) && exists(fieldValue.field)) {\n\t\t\t\t\tconsole.log(\n\t\t\t\t\t\t`  Campo: ${fieldValue.field.name}, Valor: ${\n\t\t\t\t\t\t\tfieldValue.name ||\n\t\t\t\t\t\t\tfieldValue.title ||\n\t\t\t\t\t\t\tfieldValue.date ||\n\t\t\t\t\t\t\t'sem valor'\n\t\t\t\t\t\t}`,\n\t\t\t\t\t);\n\t\t\t\t}\n\t\t\t});\n\t\t}\n\n\t\t// Ainda verificar campos fieldValues para outros atributos como status e prioridade\n\t\tif (exists(item.fieldValues?.nodes)) {\n\t\t\titem.fieldValues.nodes.forEach((fieldValue) => {\n\t\t\t\tif (!exists(fieldValue) || !exists(fieldValue.field)) return;\n\n\t\t\t\tif (fieldValue.field.name === 'Status' && exists(fieldValue.name)) {\n\t\t\t\t\tprojectStatus = fieldValue.name;\n\t\t\t\t}\n\t\t\t\tif (fieldValue.field.name === 'Priority' && exists(fieldValue.name)) {\n\t\t\t\t\tpriority = fieldValue.name;\n\t\t\t\t}\n\t\t\t\t// Verificar campo de tipo apenas se ainda não temos um tipo da função isEpic\n\t\t\t\tif (\n\t\t\t\t\tissueType === 'No Type' &&\n\t\t\t\t\t(fieldValue.field.name === 'Type' ||\n\t\t\t\t\t\tfieldValue.field.name === 'Issue Type' ||\n\t\t\t\t\t\tfieldValue.field.name === 'Kind') &&\n\t\t\t\t\texists(fieldValue.name)\n\t\t\t\t) {\n\t\t\t\t\tissueType = fieldValue.name;\n\t\t\t\t\tconsole.log(\n\t\t\t\t\t\t`Encontrado tipo \"${issueType}\" para issue: ${issue.title}`,\n\t\t\t\t\t);\n\t\t\t\t}\n\t\t\t});\n\t\t}\n\n\t\t// Verificar se a issue tem um tipo diretamente no conteúdo como última tentativa\n\t\tif (issue.type && issueType === 'No Type') {\n\t\t\tissueType = issue.type;\n\t\t\tconsole.log(`Tipo encontrado diretamente na issue: ${issueType}`);\n\t\t}\n\n\t\t// Atribuímos o tipo \"Épico\" apenas se a função isEpic determinou que é um épico\n\t\t// e não temos outro tipo\n\t\tif (epicResult.isEpic && issueType === 'No Type') {\n\t\t\tissueType = 'Épico';\n\t\t\tconsole.log(\n\t\t\t\t`Definindo tipo como Épico com base nos critérios rigorosos: ${issue.title}`,\n\t\t\t);\n\t\t}\n\n\t\t// Determinar status do épico baseado no progresso das sub-issues\n\t\tconst epicStatus = determineEpicStatus(issue.subIssuesSummary);\n\n\t\t// Contabilizar por status\n\t\tepicsByStatus[epicStatus] = (epicsByStatus[epicStatus] || 0) + 1;\n\n\t\t// Criar detalhes do épico\n\t\tconst epicDetail = {\n\t\t\tepicId: issue.number ? issue.number.toString() : item.id,\n\t\t\tepicTitle: issue.title || 'Sem título',\n\t\t\tepicUrl: issue.url || '#',\n\t\t\tstatus: epicStatus,\n\t\t\tprojectStatus: projectStatus,\n\t\t\tpriority: priority,\n\t\t\tissueType: issueType, // Agora issueType está sendo extraído corretamente do objeto issue.issueType\n\t\t\tcompletionRate: issue.subIssuesSummary\n\t\t\t\t? issue.subIssuesSummary.percentCompleted\n\t\t\t\t: 0,\n\t\t\tsubIssuesTotal: issue.subIssuesSummary ? issue.subIssuesSummary.total : 0,\n\t\t\tsubIssuesCompleted: issue.subIssuesSummary\n\t\t\t\t? issue.subIssuesSummary.completed\n\t\t\t\t: 0,\n\t\t\tsubIssuesRemaining: issue.subIssuesSummary\n\t\t\t\t? issue.subIssuesSummary.total - issue.subIssuesSummary.completed\n\t\t\t\t: 0,\n\t\t\tassignees: issue.assignees?.nodes?.map((a) => a.login) || [],\n\t\t\tlabels: issue.labels?.nodes?.map((l) => l.name) || [],\n\t\t\tupdatedAt: issue.updatedAt || '',\n\t\t\tcreatedAt: issue.createdAt || '',\n\t\t\t// Descrição removida para reduzir tamanho dos dados no n8n\n\t\t};\n\n\t\tepicsDetails.push(epicDetail);\n\t});\n\n\tconsole.log(`\\nResumo do processamento:`);\n\tconsole.log(`- Items processados: ${itemsProcessed}`);\n\tconsole.log(`- Items ignorados: ${itemsSkipped}`);\n\tconsole.log(`- Épicos encontrados: ${totalEpics}`);\n\n\t// Ordenar épicos por taxa de conclusão (decrescente) e depois por data de atualização\n\tepicsDetails.sort((a, b) => {\n\t\tif (b.completionRate !== a.completionRate) {\n\t\t\treturn b.completionRate - a.completionRate;\n\t\t}\n\t\treturn new Date(b.updatedAt) - new Date(a.updatedAt);\n\t});\n\n\t// Calcular estatísticas adicionais\n\tconst averageCompletion =\n\t\ttotalEpics > 0\n\t\t\t? epicsDetails.reduce((sum, epic) => sum + epic.completionRate, 0) /\n\t\t\t  totalEpics\n\t\t\t: 0;\n\n\tconst totalSubIssues = epicsDetails.reduce(\n\t\t(sum, epic) => sum + epic.subIssuesTotal,\n\t\t0,\n\t);\n\tconst completedSubIssues = epicsDetails.reduce(\n\t\t(sum, epic) => sum + epic.subIssuesCompleted,\n\t\t0,\n\t);\n\n\t// Criar resumo final\n\tconst summary = {\n\t\tprojectTitle: 'Epic Status Report',\n\t\ttotalEpics: totalEpics,\n\t\tepicsProgress: epicsByStatus,\n\t\tepicsDetails: epicsDetails,\n\t\tstatistics: {\n\t\t\taverageCompletionRate: Math.round(averageCompletion * 100) / 100,\n\t\t\ttotalSubIssues: totalSubIssues,\n\t\t\tcompletedSubIssues: completedSubIssues,\n\t\t\toverallProgress:\n\t\t\t\ttotalSubIssues > 0\n\t\t\t\t\t? Math.round((completedSubIssues / totalSubIssues) * 100)\n\t\t\t\t\t: 0,\n\t\t},\n\t\tdate: new Date().toISOString(),\n\t\tgeneratedAt: new Date().toLocaleString('pt-BR', {\n\t\t\ttimeZone: 'America/Sao_Paulo',\n\t\t\tyear: 'numeric',\n\t\t\tmonth: '2-digit',\n\t\t\tday: '2-digit',\n\t\t\thour: '2-digit',\n\t\t\tminute: '2-digit',\n\t\t}),\n\t};\n\n\treturn summary;\n}\n\n// Execução principal\ntry {\n\tlet data;\n\n\tif (isLocalRun) {\n\t\tconst fs = require('fs');\n\t\t// Ambiente local - ler do arquivo data.json\n\t\tconsole.log('Executando em ambiente local...');\n\n\t\tif (!fs.existsSync('data.json')) {\n\t\t\tconsole.error('Erro: Arquivo data.json não encontrado!');\n\t\t\tconsole.log(\n\t\t\t\t'Execute o script github-query.sh primeiro para obter os dados.',\n\t\t\t);\n\t\t\tprocess.exit(1);\n\t\t}\n\n\t\tconst rawData = fs.readFileSync('data.json', 'utf8');\n\t\tconst jsonData = JSON.parse(rawData);\n\n\t\t// Verificar estrutura dos dados\n\t\tif (jsonData.data?.organization?.projectV2?.items?.nodes) {\n\t\t\tdata = jsonData.data.organization.projectV2.items.nodes;\n\t\t} else if (Array.isArray(jsonData)) {\n\t\t\tdata = jsonData;\n\t\t} else {\n\t\t\tthrow new Error('Estrutura de dados inválida no arquivo data.json');\n\t\t}\n\t} else {\n\t\t// Ambiente n8n - usar dados de entrada\n\t\tconst inputData = $input.all();\n\n\t\tconsole.log(`Recebidos ${inputData.length} itens de entrada no n8n`);\n\t\tconsole.log(\n\t\t\t'Primeiro item recebido:',\n\t\t\tJSON.stringify(inputData[0]?.json, null, 2),\n\t\t);\n\n\t\tif (!inputData || inputData.length === 0) {\n\t\t\tthrow new Error('Nenhum dado de entrada fornecido');\n\t\t}\n\n\t\t// Combinar dados de múltiplas páginas se necessário\n\t\tdata = [];\n\t\tinputData.forEach((item, index) => {\n\t\t\tconsole.log(\n\t\t\t\t`Processando item ${index + 1}:`,\n\t\t\t\tObject.keys(item.json || {}),\n\t\t\t);\n\n\t\t\tif (item.json) {\n\t\t\t\tif (Array.isArray(item.json)) {\n\t\t\t\t\tconsole.log(\n\t\t\t\t\t\t`Item ${index + 1} é array com ${item.json.length} elementos`,\n\t\t\t\t\t);\n\t\t\t\t\tdata = data.concat(item.json);\n\t\t\t\t} else if (item.json.data?.organization?.projectV2?.items?.nodes) {\n\t\t\t\t\tconst nodes = item.json.data.organization.projectV2.items.nodes;\n\t\t\t\t\tconsole.log(\n\t\t\t\t\t\t`Item ${index + 1} tem ${nodes.length} nodes na estrutura padrão`,\n\t\t\t\t\t);\n\t\t\t\t\tdata = data.concat(nodes);\n\t\t\t\t} else if (item.json.projectTitle) {\n\t\t\t\t\t// Se já está processado (vindo de outro node), usar diretamente\n\t\t\t\t\tconsole.log(`Item ${index + 1} parece já processado`);\n\t\t\t\t\tdata.push(item.json);\n\t\t\t\t} else {\n\t\t\t\t\tconsole.log(\n\t\t\t\t\t\t`Item ${\n\t\t\t\t\t\t\tindex + 1\n\t\t\t\t\t\t} estrutura não reconhecida, adicionando como está`,\n\t\t\t\t\t);\n\t\t\t\t\tdata.push(item.json);\n\t\t\t\t}\n\t\t\t}\n\t\t});\n\n\t\tconsole.log(`Total de dados para processamento: ${data.length}`);\n\t\tif (data.length > 0) {\n\t\t\tconsole.log('Primeiro item de dados:', JSON.stringify(data[0], null, 2));\n\t\t}\n\t}\n\n\t// Processar os dados\n\tconst result = processEpicsData(data);\n\n\tif (isLocalRun) {\n\t\t// Salvar resultado em arquivo\n\t\tconst fs = require('fs');\n\t\tfs.writeFileSync(\n\t\t\t'epics_analysis_result.json',\n\t\t\tJSON.stringify(result, null, 2),\n\t\t);\n\t\tconsole.log('\\n=== RESUMO DOS ÉPICOS ===');\n\t\tconsole.log(`Total de Épicos: ${result.totalEpics}`);\n\t\tconsole.log(\n\t\t\t`Taxa Média de Conclusão: ${result.statistics.averageCompletionRate}%`,\n\t\t);\n\t\tconsole.log(`Progresso Geral: ${result.statistics.overallProgress}%`);\n\t\tconsole.log('\\nProgresso por Status:');\n\t\tObject.entries(result.epicsProgress).forEach(([status, count]) => {\n\t\t\tconsole.log(`  ${status}: ${count} épicos`);\n\t\t});\n\t\tconsole.log('\\nResultado salvo em epics_analysis_result.json');\n\n\t\t// Exportar para n8n\n\t\tmodule.exports = { json: result };\n\t} else {\n\t\t// Retornar para n8n\n\t\treturn { json: result };\n\t}\n} catch (error) {\n\tconsole.error('Erro no processamento:', error.message);\n\n\tconst errorResult = {\n\t\terror: true,\n\t\tmessage: `Erro ao processar dados dos épicos: ${error.message}`,\n\t\ttimestamp: new Date().toISOString(),\n\t};\n\n\tif (isLocalRun) {\n\t\tconsole.log(JSON.stringify(errorResult, null, 2));\n\t\tprocess.exit(1);\n\t} else {\n\t\treturn { json: errorResult };\n\t}\n}\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        -20
+      ],
+      "id": "f5eff955-a3e0-4f2b-a03c-e23250f47f85",
+      "name": "process_data"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Params",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Combine Items": {
+      "main": [
+        [
+          {
+            "node": "process_data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Has new page?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has new page?": {
+      "main": [
+        [
+          {
+            "node": "Set Next Page",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Combine Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Next Page": {
+      "main": [
+        [
+          {
+            "node": "Get Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Data": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Params": {
+      "main": [
+        [
+          {
+            "node": "Get Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "format_mail": {
+      "main": [
+        [
+          {
+            "node": "Gmail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "process_data": {
+      "main": [
+        [
+          {
+            "node": "format_mail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1deb6ca7-ccfb-4a25-83aa-7d8f8abc1697",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "680b771266285e0b2805aa12c56e24ddd5aa291181c2c29d2ca50bff81261932"
+  },
+  "id": "llCyiVQz7sBrVIe7",
+  "tags": [
+    {
+      "createdAt": "2025-05-20T16:31:04.983Z",
+      "updatedAt": "2025-05-20T16:31:04.983Z",
+      "id": "YePntUlhLK5IUSTv",
+      "name": "reports"
+    },
+    {
+      "createdAt": "2025-05-20T16:31:15.518Z",
+      "updatedAt": "2025-05-20T16:31:15.518Z",
+      "id": "vSLxRvwJiQOzeGVX",
+      "name": "production"
+    },
+    {
+      "createdAt": "2025-05-20T16:43:04.301Z",
+      "updatedAt": "2025-05-20T16:43:04.301Z",
+      "id": "Ng6Yh4ZQW2L4O4sx",
+      "name": "george"
+    }
+  ]
+}

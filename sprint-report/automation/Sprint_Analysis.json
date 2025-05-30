@@ -1,0 +1,463 @@
+{
+  "name": "Sprint Analysis - Github",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "=0 6 * * 1-5"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        -40
+      ],
+      "id": "4dff3bdf-8cc8-4ad4-9e10-c86a520c6f93",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "sendTo": "george.farias@f4g.com.br",
+        "subject": "={{ $json.output.subject }}",
+        "message": "={{ $json.output.body }}",
+        "options": {
+          "ccList": "akaua.carvalho@f4g.com.br"
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1860,
+        -20
+      ],
+      "id": "a65654a9-f027-486f-a4e2-7f8549351d0c",
+      "name": "Gmail",
+      "webhookId": "01e615ba-702d-473f-be3d-2a1b22e69825",
+      "executeOnce": true,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "9eY5yubWIBMcDRl1",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const SOURCE_NODE_NAME = \"Get Data\"; // Nome do nó de origem\nconst MAX_ITERATIONS = 20; // Número máximo de iterações para prevenir loops infinitos\n\n// Array para armazenar todos os nós combinados\nlet allNodes = [];\nlet projectData = null;\nlet totalPagesProcessed = 0;\n\nconsole.log(`Iniciando coleta de dados de múltiplas execuções do nó: ${SOURCE_NODE_NAME}`);\n\n// Loop para coletar todas as saídas disponíveis\nlet iteration = 0;\nlet hasMoreData = true;\n\nwhile (hasMoreData && iteration < MAX_ITERATIONS) {\n  try {\n    // Tenta obter os dados da iteração atual\n    const pages = $items(SOURCE_NODE_NAME, 0, iteration);\n    \n    if (!pages || pages.length === 0) {\n      console.log(`Nenhum dado encontrado na iteração ${iteration}. Finalizando coleta.`);\n      hasMoreData = false;\n      continue;\n    }\n\n    console.log(`Processando dados da iteração ${iteration}. Encontrados ${pages.length} itens.`);\n    \n    // Processa cada item encontrado na iteração\n    for (const item of pages) {\n      // Verifica se temos os dados no formato esperado\n      const project = item.json?.data?.organization?.projectV2;\n      const nodes = project?.items?.nodes;\n      \n      if (project && nodes) {\n        // Se ainda não temos metadados do projeto, salvamos da primeira ocorrência válida\n        if (!projectData) {\n          projectData = project;\n          console.log(`Metadados do projeto obtidos: ${project.title} (ID: ${project.id})`);\n        }\n        \n        // Adiciona os nós encontrados ao array principal\n        console.log(`Adicionando ${nodes.length} novos itens ao conjunto de dados`);\n        allNodes.push(...nodes);\n        totalPagesProcessed++;\n      } else {\n        console.log(`Aviso: Formato de dados inesperado na iteração ${iteration}`);\n      }\n    }\n    \n    // Avança para a próxima iteração\n    iteration++;\n\n  } catch (error) {\n    // Se ocorrer um erro, significa que não há mais dados disponíveis\n    console.log(`Fim dos dados disponíveis após ${iteration} iterações. Erro: ${error.message}`);\n    hasMoreData = false;\n  }\n}\n\n// Verifica se conseguimos coletar algum dado\nif (!projectData || allNodes.length === 0) {\n  console.error(\"Erro: Nenhum dado válido foi encontrado em qualquer iteração\");\n  return [{\n    json: {\n      error: true,\n      message: \"Não foi possível coletar dados válidos\"\n    }\n  }];\n}\n\n// Estatísticas finais\nconsole.log(`Coleta de dados concluída:`);\nconsole.log(`- Total de iterações processadas: ${iteration}`);\nconsole.log(`- Total de páginas válidas: ${totalPagesProcessed}`);\nconsole.log(`- Total de itens coletados: ${allNodes.length}`);\nconsole.log(`- Dados do projeto: ${projectData.title} (ID: ${projectData.id})`);\n\n// Constrói o resultado final no formato esperado pelo process_data.js\nconst result = {\n  data: {\n    organization: {\n      projectV2: {\n        id: projectData.id,\n        title: projectData.title,\n        fields: projectData.fields,\n        items: {\n          nodes: allNodes,\n        },\n      },\n    },\n  },\n};\n\n// Retorna o resultado consolidado\nreturn [{ json: result }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        -20
+      ],
+      "id": "0e738953-f315-4ca8-b9df-06e7066d91ef",
+      "name": "Combine Items",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "amount": 1
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        680,
+        -40
+      ],
+      "id": "147d71ff-5457-4d2f-803a-e8156bcc497d",
+      "name": "Wait",
+      "webhookId": "8c438e2c-a097-44c6-9a98-b244827e3018"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "0e2e5b28-0ae4-4f67-9eb5-2a9d1523c712",
+              "leftValue": "={{ $json[\"data\"][\"organization\"][\"projectV2\"][\"items\"]['pageInfo']['hasNextPage'] }}",
+              "rightValue": "=true",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        880,
+        -40
+      ],
+      "id": "3f3ee45f-1ba7-458c-b472-7a37642b592f",
+      "name": "Has new page?"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b49c3f98-b7ed-457d-863f-34af97f08861",
+              "name": "cursor",
+              "value": "={{$json[\"data\"][\"organization\"][\"projectV2\"][\"items\"][\"pageInfo\"][\"endCursor\"]}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        860,
+        -280
+      ],
+      "id": "ea383ede-4423-41c1-a679-692493a57a05",
+      "name": "Set Next Page"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.github.com/graphql",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "githubApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"query\": \"query($organization: String!, $projectNumber: Int!, $afterCursor: String) { organization(login: $organization) { projectV2(number: $projectNumber) { id title fields(first: 20) { nodes { ... on ProjectV2Field { id name dataType } ... on ProjectV2IterationField { id name configuration { completedIterations { id title startDate duration } iterations { id title startDate duration } duration startDay } } ... on ProjectV2SingleSelectField { id name options { id name } } } } items(first: 100, after: $afterCursor) { pageInfo { hasNextPage endCursor } nodes { id content { ... on Issue { title number state url assignees(first: 5) { nodes { login } } labels(first: 5) { nodes { name } } issueType { id name } updatedAt createdAt } ... on PullRequest { title number state url assignees(first: 5) { nodes { login } } labels(first: 5) { nodes { name } } updatedAt createdAt } } fieldValues(first: 20) { nodes { ... on ProjectV2ItemFieldSingleSelectValue { name field { ... on ProjectV2FieldCommon { name } } } ... on ProjectV2ItemFieldDateValue { date field { ... on ProjectV2FieldCommon { name } } } ... on ProjectV2ItemFieldIterationValue { title startDate duration iterationId field { ... on ProjectV2FieldCommon { name } } } ... on ProjectV2ItemFieldNumberValue { number field { ... on ProjectV2FieldCommon { name } } } } } } } } } } }\",\n  \"variables\": {\n    \"afterCursor\": \"{{ $json.cursor ? $json.cursor : null }}\",\n    \"organization\": \"{{ $(\"Set Params\").item.json.organization }}\",\n    \"projectNumber\": {{ Number($(\"Set Params\").item.json.projectNumber) }}\n  }\n}\n",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        460,
+        -40
+      ],
+      "id": "90e39911-dbca-434d-ac0e-a677e3e911e9",
+      "name": "Get Data",
+      "executeOnce": false,
+      "credentials": {
+        "githubApi": {
+          "id": "leqgDcgVWMXdmn3K",
+          "name": "GitHub account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Você analisará o relatório abaixo:\n\n1. **current** — dados da sprint atual:  \n   `{{ JSON.stringify($('process_data').all()[0].json, null, 2) }}`",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=Você é um analista sênior de projetos ágeis, especialista em métricas de sprints, produtividade de times e análise de gargalos. Sua missão é transformar dados JSON sobre uma sprint atual em um relatório executivo estratégico, visual e orientado à ação.\n\n---\n\n## Instruções para o campo `body` (HTML)\n\n* Não use `<html>`, `<head>` ou `<body>` — apenas o conteúdo interno.\n* Use:\n  * Títulos: `<h2>`, `<h3>`\n  * Listas: `<ul>`, `<li>`\n  * Ênfase com `<strong>`\n  * Emojis: ✅ ⚠️ 🔴 🐞 📊 💡\n* Textos diretos, com base nos dados fornecidos no JSON.\n* O relatório será lido por Product Owners, Scrum Masters e lideranças técnicas.\n\n---\n\n## JSON DE ENTRADA\n\nVocê receberá um array com um único objeto contendo:\n\n- Identificação: `projectTitle`, `currentSprint.title`, `startDate`, `endDate`, `date`, `duration`\n- Progresso: `deliveredPoints`, `pendingPoints`, `deliveredPercentage`, `pendingPercentage`, `totalEstimatePoints`\n- Volumetria: `totalIssues`, `openIssues`, `closedIssues`, `issueTypeCounts`\n- Status: `statusCounts`, `estimateTotals`\n- Prioridade: `priorityCounts`\n- Bugs: `bugCount`, `deliveredBugCount`, `pendingBugCount`, `bugResolutionRate`, `bugPercentage`\n- Time: `assigneeEstimates`, `assigneeBugCounts`, `assigneeBugRatio`\n- Ignore membros: `DanielleVilarinho`, `alisonbarros`, `georgesouzafarias`\n\n---\n\n## Interpretação dos Status\n\nUse esta legenda para avaliar progresso e gargalos:\n\n- <strong>Backlog</strong>: Documentado, mas não priorizado.\n- <strong>Ready</strong>: Pronto para desenvolvimento.\n- <strong>In progress</strong>: Em desenvolvimento.\n- <strong>Blocked</strong>: Travado por impedimentos.\n- <strong>In review</strong>: Em revisão funcional/técnica.\n- <strong>Waiting Evidence</strong>: Aguardando informação adicional.\n- <strong>Test</strong>: Em fase de testes.\n- <strong>Test Done</strong>: Aprovado nos testes.\n- <strong>Deployed to Staging</strong>: Em homologação.\n- <strong>Deployed to Production</strong>: Finalizado.\n- <strong>Canceled</strong>: Cancelado/despriorizado.\n\n---\n\n## Interpretação das Prioridades\n\nUtilize as prioridades para classificar risco e urgência:\n\n- <strong>P0</strong>: Urgente e crítica — deve ser resolvida agora.\n- <strong>P1</strong>: Muito importante — resolver nesta sprint.\n- <strong>P2</strong>: Alta, mas pode esperar.\n- <strong>P3–P4</strong>: Normal.\n- <strong>P5–P8</strong>: Baixa, geralmente backlog técnico.\n\n---\n\n## Interpretação dos Tipos de Issue\n\nUse os tipos de issue para caracterizar o esforço:\n\n- <strong>Task</strong>: Trabalho específico.\n- <strong>Bug</strong>: Erro inesperado.\n- <strong>Feature</strong>: Nova funcionalidade.\n- <strong>Design</strong>: Definição de conceito ou proposta.\n- <strong>Epic</strong>: Agrupador de tarefas grandes.\n- <strong>Spike</strong>: Pesquisa/exploração para solução futura.\n\nInclua observações se houver acúmulo de bugs, spikes ou falta de features.\n\n---\n\n## Seções do Relatório\n\n### 1. <h2>📊 Resumo Executivo</h2>\n\n- Classificação da sprint (✅ / ⚠️ / 🔴) com base em `deliveredPercentage`\n- Dias úteis restantes (`date` vs. `endDate`)\n- Expectativa realista de entrega\n- Alerta se pendências forem muito altas\n\n---\n\n### 2. <h3>📈 Tendências e Volume</h3>\n\n- Total de issues, entregues/pendentes\n- Proporção de tipos (`issueTypeCounts`)\n- Cobertura de bugs resolvidos\n- Alerta se bugPercentage > 30%\n\n---\n\n### 3. <h3>📊 Visão Geral da Sprint</h3>\n\n- Projeto e nome da sprint\n- Datas e progresso\n- Fechadas vs. abertas\n- Distribuição percentual\n\n---\n\n### 4. <h3>⚠️ Riscos e Gargalos</h3>\n\n- Tarefas `Blocked` e acumuladas em `Ready`\n- Total de pontos P0 + P1\n- Destacar membros com excesso de tarefas não entregues\n\n---\n\n### 5. <h3>🐞 Qualidade e Bugs</h3>\n\n- Quantidade total e resolvida\n- Membros com mais bugs atribuídos\n- Se bugRatio > 40% em alguém, destaque\n\n---\n\n### 6. <h3>👥 Performance da Equipe</h3>\n\n- Top 3 entregas (`delivered`)\n- Quem tem `pending > delivered`\n- Membros sem entregas (exceto os ignorados)\n\n---\n\n### 7. <h3>🧭 Ações Recomendadas</h3>\n\n- Acao 1\n- Acao 2\n- Acao 3\n- Acao 4\n- Acao 5\n\n---\n\n## SAÍDA ESPERADA\n\nRetorne um JSON com:\n\n```json\n{\n  \"subject\": \"Relatório de Acompanhamento de Sprint - <data>\",\n  \"body\": \"<HTML formatado com insights e dados reais>\"\n}\n````\n\nEscreva de forma clara, objetiva e baseada em evidências do JSON. Não invente dados."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        -20
+      ],
+      "id": "dc54dd90-cef9-4041-8675-417dc666dc05",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        1400,
+        220
+      ],
+      "id": "3db2b125-11c9-438d-9516-5e4adbe7a9ef",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "BHXusSEU10unDNKa",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "gpt-memory-store",
+        "contextWindowLength": 15
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryRedisChat",
+      "typeVersion": 1.5,
+      "position": [
+        1560,
+        220
+      ],
+      "id": "9ab131b3-1d12-46d0-9ca2-6db0371557a7",
+      "name": "Redis Chat Memory",
+      "credentials": {
+        "redis": {
+          "id": "HKdSx38e77S833S7",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"subject\": \"Análise da Sprint <Número>\",\n  \"body\": \"<HTML com análise atual vs. histórica>\"\n}\n"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.2,
+      "position": [
+        1720,
+        220
+      ],
+      "id": "30090cc3-0c5b-486d-86ff-a05fdaf65938",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Função auxiliar para verificar se um valor existe\nfunction exists(value) {\n\treturn value !== null && value !== undefined;\n}\n\n// Função auxiliar para calcular a data de término de uma sprint\nfunction calculateEndDate(startDate, durationDays) {\n\tif (!startDate || !durationDays) return null;\n\n\tconst date = new Date(startDate);\n\tdate.setDate(date.getDate() + parseInt(durationDays) - 1); // Subtrair 1 porque a data de início já conta como dia 1\n\treturn date.toISOString().split('T')[0]; // Retorna apenas a parte da data (YYYY-MM-DD)\n}\n\n// Função para calcular a idade da issue em dias\nfunction calculateIssueDuration(createdAt, updatedAt) {\n\tif (!createdAt || !updatedAt) return 0;\n\n\tconst created = new Date(createdAt);\n\tconst updated = new Date(updatedAt);\n\tconst durationMs = updated - created;\n\n\t// Converte para dias\n\treturn Math.floor(durationMs / (1000 * 60 * 60 * 24));\n}\n\nlet projectData,\n\titems = [];\n\n// Verifica se estamos em ambiente local\nif (typeof $input === 'undefined') {\n\tconsole.log('Ambiente local detectado, carregando data.json');\n\tconst fs = require('fs');\n\tlet localData = JSON.parse(fs.readFileSync('./data.json', 'utf8'));\n\n\t$input = {\n\t\titem: { json: localData },\n\t};\n\tconsole.log('Arquivo data.json carregado com sucesso');\n}\n\ntry {\n\tprojectData = $input.item.json.data.organization.projectV2;\n\titems = projectData.items.nodes;\n} catch (error) {\n\treturn {\n\t\tjson: {\n\t\t\terror: true,\n\t\t\tmessage: `Erro ao processar dados: ${error.message}`,\n\t\t\tinputStructure: JSON.stringify($input).substring(0, 500) + '...',\n\t\t},\n\t};\n}\n\n// Inicializa contadores\nconst statusCounts = {};\nconst priorityCounts = {};\nconst assigneeCounts = {}; // Número de issues por usuário\nconst assigneeBugCounts = {}; // Número de bugs por usuário\nconst assigneeEstimates = {}; // Total de pontos por usuário\nconst assigneeStatusCounts = {}; // Contagem de issues por status por usuário\nconst assigneeDetails = {}; // Detalhes detalhados por usuário\nconst issuesByStatus = {};\nconst bugsByStatus = {}; // Bugs organizados por status\nconst bugsByPriority = {}; // Bugs organizados por prioridade\nconst sprintCounts = {};\nconst issueTypeCounts = {}; // Para contar os tipos de issues (bugs, etc.)\nconst estimateTotals = {}; // Para armazenar o total de pontos por status\nconst bugResolutionTimes = []; // Armazena tempos de resolução de bugs\nlet totalEstimatePoints = 0; // Total de pontos em todas as issues\nlet deliveredPoints = 0; // Total de pontos em issues fechadas\nlet pendingPoints = 0; // Total de pontos em issues ainda não fechadas\nlet bugCount = 0; // Contador específico para bugs\nlet pendingBugCount = 0; // Contador para bugs pendentes\nlet deliveredBugCount = 0; // Contador para bugs fechados\nlet bugPoints = 0; // Total de pontos em bugs\nlet deliveredBugPoints = 0; // Pontos em bugs fechados\nlet pendingBugPoints = 0; // Pontos em bugs pendentes\n\n// Armazena informações sobre sprints\nconst sprintInfo = {};\nlet currentSprint = null;\nlet currentSprintId = null;\n// Primeira passagem: Identifica a sprint atual\n// Precisamos fazer isso primeiro para depois filtrar apenas issues da sprint atual\nitems.forEach((item) => {\n\tif (!exists(item) || !exists(item.fieldValues?.nodes)) return;\n\n\titem.fieldValues.nodes.forEach((fieldValue) => {\n\t\tif (\n\t\t\t!exists(fieldValue) ||\n\t\t\t!exists(fieldValue.field) ||\n\t\t\tfieldValue.field.name !== 'Sprint' ||\n\t\t\t!exists(fieldValue.title)\n\t\t)\n\t\t\treturn;\n\n\t\tconst sprint = fieldValue.title;\n\t\tconst sprintId = fieldValue.iterationId;\n\t\tconst sprintStartDate = fieldValue.startDate;\n\t\tconst sprintDuration = fieldValue.duration;\n\n\t\t// Armazena informações da sprint\n\t\tif (!sprintInfo[sprintId]) {\n\t\t\tsprintInfo[sprintId] = {\n\t\t\t\ttitle: sprint,\n\t\t\t\tstartDate: sprintStartDate,\n\t\t\t\tduration: sprintDuration,\n\t\t\t\tendDate: calculateEndDate(sprintStartDate, sprintDuration),\n\t\t\t};\n\t\t}\n\n\t\t// Determina a sprint atual com base na data\n\t\tconst today = new Date();\n\t\tconst sprintStart = new Date(sprintStartDate);\n\t\tconst sprintEnd = new Date(\n\t\t\tcalculateEndDate(sprintStartDate, sprintDuration),\n\t\t);\n\n\t\tif (today >= sprintStart && today <= sprintEnd) {\n\t\t\tcurrentSprint = sprintInfo[sprintId];\n\t\t\tcurrentSprintId = sprintId;\n\t\t}\n\t});\n});\n\n// Se não encontrou nenhuma sprint atual, usa a data atual para avisar\nif (!currentSprint) {\n\tconsole.log('Nenhuma sprint ativa no momento. Processando todos os itens.');\n} else {\n\tconsole.log(\n\t\t`Sprint atual identificada: ${currentSprint.title} (${currentSprint.startDate} a ${currentSprint.endDate})`,\n\t);\n}\n\n// Filtra apenas itens da sprint atual (se uma for encontrada)\nconst currentSprintItems = currentSprintId\n\t? items.filter((item) => {\n\t\t\tif (!exists(item) || !exists(item.fieldValues?.nodes)) return false;\n\n\t\t\t// Verifica se o item pertence à sprint atual\n\t\t\treturn item.fieldValues.nodes.some(\n\t\t\t\t(fieldValue) =>\n\t\t\t\t\texists(fieldValue) &&\n\t\t\t\t\texists(fieldValue.field) &&\n\t\t\t\t\tfieldValue.field.name === 'Sprint' &&\n\t\t\t\t\texists(fieldValue.iterationId) &&\n\t\t\t\t\tfieldValue.iterationId === currentSprintId,\n\t\t\t);\n\t  })\n\t: items; // Se não houver sprint atual, usa todos os itens\n\n// Log de informações de filtragem\nif (currentSprintId) {\n\tif (currentSprintItems.length === 0) {\n\t\tconsole.log(\n\t\t\t`Alerta: Não foram encontradas issues na sprint atual (${currentSprint.title})`,\n\t\t);\n\t} else {\n\t\tconsole.log(\n\t\t\t`Filtrando apenas itens da sprint atual: ${\n\t\t\t\tcurrentSprintItems.length\n\t\t\t} de ${items.length} itens (${Math.round(\n\t\t\t\t(currentSprintItems.length / items.length) * 100,\n\t\t\t)}%)`,\n\t\t);\n\t}\n} else {\n\tconsole.log(\n\t\t`Processando todos os ${items.length} itens, sem filtro de sprint.`,\n\t);\n}\n\n// Processa cada item da sprint atual\ncurrentSprintItems.forEach((item) => {\n\t// Pula itens sem conteúdo\n\tif (!exists(item) || !exists(item.content)) return;\n\n\tconst issue = item.content;\n\n\t// Verifica se há um tipo de issue diretamente no objeto content\n\tif (exists(issue.issueType) && exists(issue.issueType.name)) {\n\t\tconst contentIssueType = issue.issueType.name;\n\n\t\t// Atualiza o contador de bugs\n\t\tif (contentIssueType.toLowerCase().includes('bug')) {\n\t\t\tbugCount++;\n\t\t}\n\t\t\n\t\t// O tipo de issue será contabilizado mais tarde\n\t}\n\n\t// Valores padrão\n\tlet status = 'No Status';\n\tlet priority = 'No Priority';\n\tlet sprint = 'No Sprint';\n\tlet issueType = 'No Type'; // Valor padrão para tipo de issue\n\tlet sprintId = null;\n\tlet sprintStartDate = null;\n\tlet sprintDuration = null;\n\tlet estimate = 0; // Valor padrão para estimativa/pontos\n\n\t// Tenta encontrar status e prioridade\n\tif (exists(item.fieldValues?.nodes)) {\n\t\titem.fieldValues.nodes.forEach((fieldValue) => {\n\t\t\tif (!exists(fieldValue) || !exists(fieldValue.field)) return;\n\n\t\t\tif (fieldValue.field.name === 'Status' && exists(fieldValue.name)) {\n\t\t\t\tstatus = fieldValue.name;\n\t\t\t}\n\t\t\tif (fieldValue.field.name === 'Priority' && exists(fieldValue.name)) {\n\t\t\t\tpriority = fieldValue.name;\n\t\t\t}\n\t\t\t// Captura o tipo de issue (Bug, etc.) - verificando nos campos personalizados\n\t\t\tif (fieldValue.field.name === 'Type' && exists(fieldValue.name)) {\n\t\t\t\tissueType = fieldValue.name;\n\n\t\t\t\t// Incrementa o contador de bugs se o tipo for Bug\n\t\t\t\tif (issueType.toLowerCase().includes('bug')) {\n\t\t\t\t\tbugCount++;\n\t\t\t\t}\n\t\t\t}\n\t\t\t// Captura o valor de estimativa/pontos\n\t\t\tif (fieldValue.field.name === 'Estimate' && exists(fieldValue.number)) {\n\t\t\t\testimate = parseFloat(fieldValue.number) || 0;\n\t\t\t}\n\t\t\t// Captura informações da sprint\n\t\t\tif (fieldValue.field.name === 'Sprint' && exists(fieldValue.title)) {\n\t\t\t\tsprint = fieldValue.title;\n\t\t\t\tsprintId = fieldValue.iterationId;\n\t\t\t\tsprintStartDate = fieldValue.startDate;\n\t\t\t\tsprintDuration = fieldValue.duration;\n\n\t\t\t\t// Armazena informações da sprint para uso posterior\n\t\t\t\tif (!sprintInfo[sprintId]) {\n\t\t\t\t\tsprintInfo[sprintId] = {\n\t\t\t\t\t\ttitle: sprint,\n\t\t\t\t\t\tstartDate: sprintStartDate,\n\t\t\t\t\t\tduration: sprintDuration,\n\t\t\t\t\t\tendDate: calculateEndDate(sprintStartDate, sprintDuration),\n\t\t\t\t\t};\n\t\t\t\t}\n\n\t\t\t\t// Determina a sprint atual com base na data\n\t\t\t\tconst today = new Date();\n\t\t\t\tconst sprintStart = new Date(sprintStartDate);\n\t\t\t\tconst sprintEnd = new Date(\n\t\t\t\t\tcalculateEndDate(sprintStartDate, sprintDuration),\n\t\t\t\t);\n\n\t\t\t\tif (today >= sprintStart && today <= sprintEnd) {\n\t\t\t\t\tcurrentSprint = sprintInfo[sprintId];\n\t\t\t\t\tcurrentSprintId = sprintId;\n\t\t\t\t}\n\t\t\t}\n\t\t});\n\t}\n\n\t// Conta por status\n\tstatusCounts[status] = (statusCounts[status] || 0) + 1;\n\n\t// Acumula pontos de estimativa por status\n\tif (!estimateTotals[status]) {\n\t\testimateTotals[status] = 0;\n\t}\n\testimateTotals[status] += estimate;\n\ttotalEstimatePoints += estimate;\n\n\t// Calcula pontos entregues vs. pontos pendentes\n\t// Determina se a issue é um bug\n\tconst isBug =\n\t\texists(issue.issueType) &&\n\t\tissue.issueType.name.toLowerCase().includes('bug');\n\n\t// Calcula pontos entregues vs. pontos pendentes\n\tif (issue.state === 'CLOSED') {\n\t\tdeliveredPoints += estimate;\n\n\t\t// Se for um bug, incremente o contador de bugs entregues\n\t\tif (isBug) {\n\t\t\tdeliveredBugCount++;\n\t\t\tdeliveredBugPoints += estimate; // Adiciona aos pontos de bugs entregues\n\t\t}\n\t} else {\n\t\tpendingPoints += estimate;\n\n\t\t// Se for um bug, incremente o contador de bugs pendentes\n\t\tif (isBug) {\n\t\t\tpendingBugCount++;\n\t\t\tpendingBugPoints += estimate; // Adiciona aos pontos de bugs pendentes\n\t\t}\n\t}\n\n\t// Rastreia bugs por status\n\tif (isBug) {\n\t\t// Adiciona aos pontos totais de bugs\n\t\tbugPoints += estimate;\n\n\t\t// Adiciona aos pontos de bugs entregues ou pendentes\n\t\tif (issue.state === 'CLOSED') {\n\t\t\tdeliveredBugPoints += estimate;\n\n\t\t\t// Calcula o tempo de resolução para bugs fechados\n\t\t\tconst resolutionTime = calculateIssueDuration(\n\t\t\t\tissue.createdAt,\n\t\t\t\tissue.updatedAt,\n\t\t\t);\n\n\t\t\t// Armazena informações sobre tempo de resolução\n\t\t\tbugResolutionTimes.push({\n\t\t\t\tnumber: issue.number,\n\t\t\t\ttitle: issue.title,\n\t\t\t\tresolutionDays: resolutionTime,\n\t\t\t\tassignees: issue.assignees?.nodes?.map((a) => a.login) || [],\n\t\t\t});\n\t\t} else {\n\t\t\tpendingBugPoints += estimate;\n\t\t}\n\n\t\t// Organiza bugs por status\n\t\tif (!bugsByStatus[status]) {\n\t\t\tbugsByStatus[status] = [];\n\t\t}\n\t\tbugsByStatus[status].push({\n\t\t\ttitle: issue.title || 'Sem título',\n\t\t\tnumber: issue.number || 0,\n\t\t\turl: issue.url || '#',\n\t\t\tstate: issue.state || 'UNKNOWN',\n\t\t\tassignees: issue.assignees?.nodes?.map((a) => a.login) || [],\n\t\t\tpriority: priority,\n\t\t\testimate: estimate,\n\t\t});\n\n\t\t// Organiza bugs por prioridade\n\t\tif (!bugsByPriority[priority]) {\n\t\t\tbugsByPriority[priority] = [];\n\t\t}\n\t\tbugsByPriority[priority].push({\n\t\t\ttitle: issue.title || 'Sem título',\n\t\t\tnumber: issue.number || 0,\n\t\t\turl: issue.url || '#',\n\t\t\tstate: issue.state || 'UNKNOWN',\n\t\t\tassignees: issue.assignees?.nodes?.map((a) => a.login) || [],\n\t\t\tstatus: status,\n\t\t\testimate: estimate,\n\t\t});\n\t}\n\n\t// Rastreia bugs por prioridade\n\tif (isBug) {\n\t\tif (!bugsByPriority[priority]) {\n\t\t\tbugsByPriority[priority] = [];\n\t\t}\n\t\tbugsByPriority[priority].push({\n\t\t\ttitle: issue.title || 'Sem título',\n\t\t\tnumber: issue.number || 0,\n\t\t\turl: issue.url || '#',\n\t\t\tstate: issue.state || 'UNKNOWN',\n\t\t\tassignees: issue.assignees?.nodes?.map((a) => a.login) || [],\n\t\t\testimate: estimate,\n\t\t});\n\t}\n\n\t// Conta por prioridade\n\tpriorityCounts[priority] = (priorityCounts[priority] || 0) + 1;\n\n\t// Conta por tipo de issue (usa o tipo do content ou o tipo de campo, se disponível)\n\tconst actualIssueType = exists(issue.issueType) \n\t\t? issue.issueType.name \n\t\t: issueType;\n\t\n\t// Atualiza a contagem de tipos (apenas uma vez por issue)\n\tissueTypeCounts[actualIssueType] = \n\t\t(issueTypeCounts[actualIssueType] || 0) + 1;\n\n\t// Conta por sprint\n\tif (sprint !== 'No Sprint') {\n\t\tsprintCounts[sprint] = (sprintCounts[sprint] || 0) + 1;\n\t}\n\n\t// Agrupa issues por status\n\tif (!issuesByStatus[status]) {\n\t\tissuesByStatus[status] = [];\n\t}\n\n\t// Adiciona a issue ao grupo correspondente\n\tissuesByStatus[status].push({\n\t\ttitle: issue.title || 'Sem título',\n\t\tnumber: issue.number || 0,\n\t\turl: issue.url || '#',\n\t\tstate: issue.state || 'UNKNOWN',\n\t\tassignees: issue.assignees?.nodes?.map((a) => a.login) || [],\n\t\tlabels: issue.labels?.nodes?.map((l) => l.name) || [],\n\t\tpriority: priority,\n\t\tissueType: exists(issue.issueType) ? issue.issueType.name : issueType, // Prioriza o tipo do objeto content\n\t\tsprint: sprint,\n\t\testimate: estimate, // Adicionando a pontuação/estimativa da issue\n\t\tsprintStartDate: sprintStartDate,\n\t\tsprintEndDate: sprintStartDate\n\t\t\t? calculateEndDate(sprintStartDate, sprintDuration)\n\t\t\t: null,\n\t\tupdatedAt: issue.updatedAt || '',\n\t\tcreatedAt: issue.createdAt || '',\n\t});\n\n\t// Conta por responsável e soma estimativas por responsável\n\tif (exists(issue.assignees?.nodes)) {\n\t\tissue.assignees.nodes.forEach((assignee) => {\n\t\t\tif (assignee && assignee.login) {\n\t\t\t\tconst login = assignee.login;\n\n\t\t\t\t// Conta o número de issues\n\t\t\t\tassigneeCounts[login] = (assigneeCounts[login] || 0) + 1;\n\n\t\t\t\t// Conta o número de bugs por usuário\n\t\t\t\tif (isBug) {\n\t\t\t\t\tassigneeBugCounts[login] = (assigneeBugCounts[login] || 0) + 1;\n\t\t\t\t}\n\n\t\t\t\t// Soma as estimativas por usuário\n\t\t\t\tif (!assigneeEstimates[login]) {\n\t\t\t\t\tassigneeEstimates[login] = {\n\t\t\t\t\t\ttotal: 0, // Total de pontos\n\t\t\t\t\t\tdelivered: 0, // Pontos entregues (issues fechadas)\n\t\t\t\t\t\tpending: 0, // Pontos pendentes (issues abertas)\n\t\t\t\t\t};\n\t\t\t\t}\n\n\t\t\t\t// Calcula pontos entregues vs. pendentes por usuário\n\t\t\t\tif (issue.state === 'CLOSED') {\n\t\t\t\t\tassigneeEstimates[login].delivered += estimate;\n\t\t\t\t} else {\n\t\t\t\t\tassigneeEstimates[login].pending += estimate;\n\t\t\t\t}\n\n\t\t\t\tassigneeEstimates[login].total += estimate;\n\n\t\t\t\t// Contagem por status para cada usuário\n\t\t\t\tif (!assigneeStatusCounts[login]) {\n\t\t\t\t\tassigneeStatusCounts[login] = {};\n\t\t\t\t}\n\t\t\t\tassigneeStatusCounts[login][status] =\n\t\t\t\t\t(assigneeStatusCounts[login][status] || 0) + 1;\n\n\t\t\t\t// Detalhes avançados por usuário\n\t\t\t\tif (!assigneeDetails[login]) {\n\t\t\t\t\tassigneeDetails[login] = {\n\t\t\t\t\t\tissues: [],\n\t\t\t\t\t\ttotalEstimate: 0,\n\t\t\t\t\t\ttotalBugs: 0, // Total de bugs\n\t\t\t\t\t\tstatusBreakdown: {},\n\t\t\t\t\t\tpriorityBreakdown: {},\n\t\t\t\t\t\ttypeBreakdown: {}, // Adicionando contagem por tipo de issue\n\t\t\t\t\t};\n\t\t\t\t}\n\n\t\t\t\t// Adiciona a issue aos detalhes do usuário\n\t\t\t\tassigneeDetails[login].issues.push({\n\t\t\t\t\ttitle: issue.title || 'Sem título',\n\t\t\t\t\tnumber: issue.number || 0,\n\t\t\t\t\turl: issue.url || '#',\n\t\t\t\t\tstatus: status,\n\t\t\t\t\tpriority: priority,\n\t\t\t\t\tissueType: exists(issue.issueType) ? issue.issueType.name : issueType, // Prioriza o tipo do objeto content\n\t\t\t\t\testimate: estimate,\n\t\t\t\t});\n\n\t\t\t\t// Atualiza estatísticas\n\t\t\t\tassigneeDetails[login].totalEstimate += estimate;\n\n\t\t\t\t// Incrementa o contador de bugs se a issue for um bug\n\t\t\t\tif (isBug) {\n\t\t\t\t\tassigneeDetails[login].totalBugs += 1;\n\t\t\t\t}\n\t\t\t}\n\t\t});\n\t}\n\n\t// Soma as estimativas totais\n\tif (exists(issue.estimate)) {\n\t\ttotalEstimatePoints += parseFloat(issue.estimate);\n\t}\n\n\t// Soma as estimativas por status\n\tif (!estimateTotals[status]) {\n\t\testimateTotals[status] = 0;\n\t}\n\testimateTotals[status] += exists(issue.estimate)\n\t\t? parseFloat(issue.estimate)\n\t\t: 0;\n});\n\n// Cria o resumo\nconst summary = {\n\tprojectTitle: projectData.title,\n\ttotalIssues: currentSprintItems.length,\n\tstatusCounts: statusCounts,\n\tpriorityCounts: priorityCounts,\n\tissueTypeCounts: issueTypeCounts, // Contagem por tipo de issue\n\tbugCount: bugCount, // Contador específico para bugs\n\tassigneeCounts: assigneeCounts,\n\tassigneeBugCounts: assigneeBugCounts, // Número de bugs por usuário\n\n\t// Calcula a proporção de bugs por usuário (quanto maior, pior a qualidade)\n\tassigneeBugRatio: Object.keys(assigneeCounts).reduce((acc, login) => {\n\t\tconst totalIssues = assigneeCounts[login] || 0;\n\t\tconst totalBugs = assigneeBugCounts[login] || 0;\n\t\tacc[login] =\n\t\t\ttotalIssues > 0 ? Math.round((totalBugs / totalIssues) * 100) : 0;\n\t\treturn acc;\n\t}, {}),\n\n\tassigneeEstimates: assigneeEstimates, // Adicionando as estimativas por usuário\n\tassigneeStatusCounts: assigneeStatusCounts, // Contagem de issues por status por usuário\n\t//assigneeDetails: assigneeDetails, // Detalhes detalhados por usuário - menos informação\n\t//sprintCounts: sprintCounts, //remove to reduce the information size\n\testimateTotals: estimateTotals,\n\ttotalEstimatePoints: totalEstimatePoints,\n\tcurrentSprint: currentSprint,\n\t//issuesByStatus: issuesByStatus, //remove to reduce the information size\n\tdate: new Date().toISOString(),\n\n\t// Contadores adicionais úteis\n\topenIssues: currentSprintItems.filter(\n\t\t(item) => item.content?.state === 'OPEN',\n\t).length,\n\tclosedIssues: currentSprintItems.filter(\n\t\t(item) => item.content?.state === 'CLOSED',\n\t).length,\n\n\t// Metadados da filtragem\n\tfilteredBySprint: Boolean(currentSprintId),\n\ttotalUnfilteredIssues: items.length,\n\n\t// Estimativas\n\ttotalEstimatePoints: totalEstimatePoints,\n\testimateTotals: estimateTotals,\n\n\t// Estatísticas de entrega\n\tdeliveredPoints: deliveredPoints, // Total de pontos já entregues (issues fechadas)\n\tpendingPoints: pendingPoints, // Total de pontos ainda não entregues\n\tpendingPercentage:\n\t\ttotalEstimatePoints > 0\n\t\t\t? Math.round((pendingPoints / totalEstimatePoints) * 100)\n\t\t\t: 0, // Porcentagem pendente\n\tdeliveredPercentage:\n\t\ttotalEstimatePoints > 0\n\t\t\t? Math.round((deliveredPoints / totalEstimatePoints) * 100)\n\t\t\t: 0, // Porcentagem entregue\n\n\t// Estatísticas de bugs\n\tbugPercentage:\n\t\tcurrentSprintItems.length > 0\n\t\t\t? Math.round((bugCount / currentSprintItems.length) * 100)\n\t\t\t: 0, // Porcentagem de bugs em relação ao total de issues\n\tbugResolutionRate:\n\t\tbugCount > 0 ? Math.round((deliveredBugCount / bugCount) * 100) : 0, // Taxa de resolução de bugs (porcentagem de bugs fechados)\n\t//bugsByStatus: bugsByStatus, // Bugs organizados por status\n\t//bugsByPriority: bugsByPriority, // Bugs organizados por prioridade\n\tpendingBugCount: pendingBugCount, // Número de bugs pendentes\n\tdeliveredBugCount: deliveredBugCount, // Número de bugs entregues\n\tassigneeBugCounts: assigneeBugCounts, // Número de bugs por usuário\n\n\t// Estatísticas de tempo de resolução de bugs\n\t// bugResolution: {\n\t// \ttimes: bugResolutionTimes,\n\t// \taverageResolutionDays:\n\t// \t\tbugResolutionTimes.length > 0\n\t// \t\t\t? Math.round(\n\t// \t\t\t\t\tbugResolutionTimes.reduce(\n\t// \t\t\t\t\t\t(sum, bug) => sum + bug.resolutionDays,\n\t// \t\t\t\t\t\t0,\n\t// \t\t\t\t\t) / bugResolutionTimes.length,\n\t// \t\t\t  )\n\t// \t\t\t: 0,\n\t// \tmaxResolutionDays:\n\t// \t\tbugResolutionTimes.length > 0\n\t// \t\t\t? Math.max(...bugResolutionTimes.map((bug) => bug.resolutionDays))\n\t// \t\t\t: 0,\n\t// \tminResolutionDays:\n\t// \t\tbugResolutionTimes.length > 0\n\t// \t\t\t? Math.min(...bugResolutionTimes.map((bug) => bug.resolutionDays))\n\t// \t\t\t: 0,\n\t// },\n};\n\n// Suporta ambos os ambientes (local e n8n)\nif (typeof module !== 'undefined' && module.exports) {\n\tconst fs = require('fs');\n\tfs.writeFileSync('./analysis_result.json', JSON.stringify(summary, null, 2));\n\tconsole.log({ json: summary }); // Exibe no console para visualização\n\tmodule.exports = { json: summary }; // Exporta para importação por outros módulos\n} else {\n\treturn { json: summary }; // n8n\n}\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1280,
+        -20
+      ],
+      "id": "ce7b7bd1-b45f-4115-b48e-4beb40ab4571",
+      "name": "process_data"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "09e4a75e-5f5b-4028-a2fe-0519040a560f",
+              "name": "organization",
+              "value": "Interlis",
+              "type": "string"
+            },
+            {
+              "id": "99fcf2c6-5207-4413-9910-d6add30b3a3f",
+              "name": "projectNumber",
+              "value": 3,
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        -40
+      ],
+      "id": "44f06707-8961-4c16-9f28-61e42aebba75",
+      "name": "Set Params"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Params",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Combine Items": {
+      "main": [
+        [
+          {
+            "node": "process_data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Has new page?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has new page?": {
+      "main": [
+        [
+          {
+            "node": "Set Next Page",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Combine Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Next Page": {
+      "main": [
+        [
+          {
+            "node": "Get Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Data": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis Chat Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Gmail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "process_data": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Params": {
+      "main": [
+        [
+          {
+            "node": "Get Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Sao_Paulo",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "5cdbe272-a546-40c3-aa2c-59f3c87b7c35",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "680b771266285e0b2805aa12c56e24ddd5aa291181c2c29d2ca50bff81261932"
+  },
+  "id": "Qk0GNfwusOTgYFHL",
+  "tags": [
+    {
+      "createdAt": "2025-05-20T16:31:04.983Z",
+      "updatedAt": "2025-05-20T16:31:04.983Z",
+      "id": "YePntUlhLK5IUSTv",
+      "name": "reports"
+    },
+    {
+      "createdAt": "2025-05-20T16:31:15.518Z",
+      "updatedAt": "2025-05-20T16:31:15.518Z",
+      "id": "vSLxRvwJiQOzeGVX",
+      "name": "production"
+    },
+    {
+      "createdAt": "2025-05-20T16:43:04.301Z",
+      "updatedAt": "2025-05-20T16:43:04.301Z",
+      "id": "Ng6Yh4ZQW2L4O4sx",
+      "name": "george"
+    }
+  ]
+}

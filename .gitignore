@@ -6,3 +6,6 @@ data.json
 
 # macOS system files
 .DS_Store
+
+#Local Output
+analysis_result.json
