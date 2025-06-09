@@ -26,14 +26,12 @@
         "sendTo": "george.farias@f4g.com.br",
         "subject": "={{ $json.output.subject }}",
         "message": "={{ $json.output.body }}",
-        "options": {
-          "ccList": "akaua.carvalho@f4g.com.br"
-        }
+        "options": {}
       },
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
       "position": [
-        1860,
+        2160,
         -20
       ],
       "id": "a65654a9-f027-486f-a4e2-7f8549351d0c",
@@ -169,16 +167,15 @@
     {
       "parameters": {
         "promptType": "define",
-        "text": "=Você analisará o relatório abaixo:\n\n1. **current** — dados da sprint atual:  \n   `{{ JSON.stringify($('process_data').all()[0].json, null, 2) }}`",
-        "hasOutputParser": true,
+        "text": "=Você analisará o relatório abaixo:\n\n1. Hoje é dia {{ $today.format('dd-MM-yyyy') }}.\n2. **current** — dados da sprint atual:  \n   `{{ JSON.stringify($('process_data').all()[0].json, null, 2) }}`\n",
         "options": {
-          "systemMessage": "=Você é um analista sênior de projetos ágeis, especialista em métricas de sprints, produtividade de times e análise de gargalos. Sua missão é transformar dados JSON sobre uma sprint atual em um relatório executivo estratégico, visual e orientado à ação.\n\n---\n\n## Instruções para o campo `body` (HTML)\n\n* Não use `<html>`, `<head>` ou `<body>` — apenas o conteúdo interno.\n* Use:\n  * Títulos: `<h2>`, `<h3>`\n  * Listas: `<ul>`, `<li>`\n  * Ênfase com `<strong>`\n  * Emojis: ✅ ⚠️ 🔴 🐞 📊 💡\n* Textos diretos, com base nos dados fornecidos no JSON.\n* O relatório será lido por Product Owners, Scrum Masters e lideranças técnicas.\n\n---\n\n## JSON DE ENTRADA\n\nVocê receberá um array com um único objeto contendo:\n\n- Identificação: `projectTitle`, `currentSprint.title`, `startDate`, `endDate`, `date`, `duration`\n- Progresso: `deliveredPoints`, `pendingPoints`, `deliveredPercentage`, `pendingPercentage`, `totalEstimatePoints`\n- Volumetria: `totalIssues`, `openIssues`, `closedIssues`, `issueTypeCounts`\n- Status: `statusCounts`, `estimateTotals`\n- Prioridade: `priorityCounts`\n- Bugs: `bugCount`, `deliveredBugCount`, `pendingBugCount`, `bugResolutionRate`, `bugPercentage`\n- Time: `assigneeEstimates`, `assigneeBugCounts`, `assigneeBugRatio`\n- Ignore membros: `DanielleVilarinho`, `alisonbarros`, `georgesouzafarias`\n\n---\n\n## Interpretação dos Status\n\nUse esta legenda para avaliar progresso e gargalos:\n\n- <strong>Backlog</strong>: Documentado, mas não priorizado.\n- <strong>Ready</strong>: Pronto para desenvolvimento.\n- <strong>In progress</strong>: Em desenvolvimento.\n- <strong>Blocked</strong>: Travado por impedimentos.\n- <strong>In review</strong>: Em revisão funcional/técnica.\n- <strong>Waiting Evidence</strong>: Aguardando informação adicional.\n- <strong>Test</strong>: Em fase de testes.\n- <strong>Test Done</strong>: Aprovado nos testes.\n- <strong>Deployed to Staging</strong>: Em homologação.\n- <strong>Deployed to Production</strong>: Finalizado.\n- <strong>Canceled</strong>: Cancelado/despriorizado.\n\n---\n\n## Interpretação das Prioridades\n\nUtilize as prioridades para classificar risco e urgência:\n\n- <strong>P0</strong>: Urgente e crítica — deve ser resolvida agora.\n- <strong>P1</strong>: Muito importante — resolver nesta sprint.\n- <strong>P2</strong>: Alta, mas pode esperar.\n- <strong>P3–P4</strong>: Normal.\n- <strong>P5–P8</strong>: Baixa, geralmente backlog técnico.\n\n---\n\n## Interpretação dos Tipos de Issue\n\nUse os tipos de issue para caracterizar o esforço:\n\n- <strong>Task</strong>: Trabalho específico.\n- <strong>Bug</strong>: Erro inesperado.\n- <strong>Feature</strong>: Nova funcionalidade.\n- <strong>Design</strong>: Definição de conceito ou proposta.\n- <strong>Epic</strong>: Agrupador de tarefas grandes.\n- <strong>Spike</strong>: Pesquisa/exploração para solução futura.\n\nInclua observações se houver acúmulo de bugs, spikes ou falta de features.\n\n---\n\n## Seções do Relatório\n\n### 1. <h2>📊 Resumo Executivo</h2>\n\n- Classificação da sprint (✅ / ⚠️ / 🔴) com base em `deliveredPercentage`\n- Dias úteis restantes (`date` vs. `endDate`)\n- Expectativa realista de entrega\n- Alerta se pendências forem muito altas\n\n---\n\n### 2. <h3>📈 Tendências e Volume</h3>\n\n- Total de issues, entregues/pendentes\n- Proporção de tipos (`issueTypeCounts`)\n- Cobertura de bugs resolvidos\n- Alerta se bugPercentage > 30%\n\n---\n\n### 3. <h3>📊 Visão Geral da Sprint</h3>\n\n- Projeto e nome da sprint\n- Datas e progresso\n- Fechadas vs. abertas\n- Distribuição percentual\n\n---\n\n### 4. <h3>⚠️ Riscos e Gargalos</h3>\n\n- Tarefas `Blocked` e acumuladas em `Ready`\n- Total de pontos P0 + P1\n- Destacar membros com excesso de tarefas não entregues\n\n---\n\n### 5. <h3>🐞 Qualidade e Bugs</h3>\n\n- Quantidade total e resolvida\n- Membros com mais bugs atribuídos\n- Se bugRatio > 40% em alguém, destaque\n\n---\n\n### 6. <h3>👥 Performance da Equipe</h3>\n\n- Top 3 entregas (`delivered`)\n- Quem tem `pending > delivered`\n- Membros sem entregas (exceto os ignorados)\n\n---\n\n### 7. <h3>🧭 Ações Recomendadas</h3>\n\n- Acao 1\n- Acao 2\n- Acao 3\n- Acao 4\n- Acao 5\n\n---\n\n## SAÍDA ESPERADA\n\nRetorne um JSON com:\n\n```json\n{\n  \"subject\": \"Relatório de Acompanhamento de Sprint - <data>\",\n  \"body\": \"<HTML formatado com insights e dados reais>\"\n}\n````\n\nEscreva de forma clara, objetiva e baseada em evidências do JSON. Não invente dados."
+          "systemMessage": "=Você é um consultor executivo de gestão ágil contratado para identificar riscos e gargalos em sprints. Sua análise deve ser estratégica, crítica e orientada à decisão, com foco em entregas, riscos operacionais, projeções e ações concretas.\n\n* Use linguagem clara, profissional, sem jargões técnicos.\n* Destaque pontos de atenção com emojis visuais.\n* Dê ênfase à tomada de decisão e às maiores prioridades.\n* Avalie se a sprint está sob controle, em risco ou crítica.\n* Gere recomendações com impacto no curto prazo.\n\nNo relatório:\n\n* Projete se a sprint será entregue com sucesso, explicite o grau de risco (baixo, moderado, alto).\n* Destaque áreas de risco (prioridades, bugs, bloqueios).\n* Aponte membros com sobrecarga ou ociosidade.\n* Sugira medidas concretas para mitigar os riscos, priorizando impacto e viabilidade.\n* Registre, quando aplicável, histórico de recomendações ou acompanhamento de ações passadas.\n* Inclua riscos qualitativos (ex: dependências externas, clima da equipe).\n\n---\n\n## Instruções para o campo `body` (HTML)\n\n* Não use `<html>`, `<head>` ou `<body>`.\n* Use:\n\n  * `<div>` para blocos visuais de destaque\n  * `<h2>`, `<h3>` para títulos\n  * `<ul>`, `<li>` para listas\n  * `<strong>` para destaques\n  * Emojis como: ✅ ⚠️ 🔴 🐞 📊 📈 🧠 🧭 ⬆️ ⬇️ ⏸️\n* Escreva de forma clara, objetiva, crítica e **com base apenas no JSON fornecido**.\n\n---\n\n## Estrutura e Análises Esperadas\n\n**1. Bloco de Alerta Executivo**\n\n* Inicie com um bloco visual de síntese para gestores.\n* Exemplo:\n  `<div class=\"summary-alert\">⚠️ Sprint sob risco de não entrega | Progresso abaixo do planejado | Ação gerencial recomendada</div>`\n\n**2. <h2>📑 Resumo Executivo</h2>**\n\n* Entre 10 e 25 linhas, trazendo avaliação geral, principais riscos e recomendação global.\n* Deve abrir com uma sentença de avaliação (\"A sprint está em risco controlado, mas exige ação imediata...\").\n* Finalize com orientação clara (\"Intervenção de gestão é essencial para não comprometer o ciclo\").\n\n**3. <h2>🔴 Atenção Imediata</h2>**\n\n* Liste em tópicos as 1-3 maiores prioridades do ciclo (ex: P0 paradas, bugs críticos, bloqueios graves).\n\n**4. <h2>📊 Visão Geral e Status Atual</h2>**\n\n* Nome do projeto e sprint\n* Dias totais, já passados, dias restantes\n* Progresso em pontos: entregues vs. pendentes, barra de progresso\n* Status geral da sprint (✅ normal, ⚠️ risco, 🔴 crítica)\n\n**5. <h3>📈 Tendência e Previsão</h3>**\n\n* Calcule média diária de entrega, projete entrega até o fim e compare com o total.\n* Diga se a sprint será concluída com sucesso.\n* Mostre a **tendência**: risco aumentando, diminuindo ou estável (use emojis: ⬆️ ⬇️ ⏸️).\n* Se houver risco de não entrega, destaque causas prováveis (ex: carga mal distribuída, acúmulo em “Ready”).\n\n**6. <h3>⚠️ Gargalos e Riscos</h3>**\n\n* Destaque acumulados em \"Ready\", \"Blocked\" ou \"In Progress\".\n* Calcule e destaque issues P0 + P1 pendentes.\n* Liste membros com alta carga e sem entregas.\n* Se houver riscos qualitativos (dependências externas, clima ruim, etc.), cite aqui.\n\n**7. <h3>🐞 Qualidade e Riscos Técnicos</h3>**\n\n* Total de bugs, resolvidos e pendentes.\n* Taxa de resolução e membros com bug ratio acima de 30%.\n* Avalie se há risco técnico para o produto (ex: bugs críticos em produção, falhas recorrentes).\n\n**8. <h3>👥 Performance da Equipe</h3>**\n\n* Destaque membros que já entregaram (com pontos entregues).\n* Liste membros com mais de 30 pontos pendentes e nenhuma entrega.\n* Apresente desequilíbrios relevantes entre atribuições e entregas.\n* Sugira redistribuição de tarefas ou reforço a membros de maior entrega.\n\n**9. <h3>🧠 Riscos Qualitativos</h3>**\n\n* Liste fatores não quantitativos que possam impactar a sprint, como dependências de outros times, atrasos externos, clima de equipe, mudanças de escopo.\n\n**10. <h3>📅 Histórico e Follow-up</h3>**\n\n* Se existirem recomendações de sprints anteriores, informe se foram implementadas ou não e o resultado.\n* Cite evolução de risco: “Risco caiu desde a última análise”, “Tendência de agravamento”, etc.\n\n**11. <h3>✅ Checklist de Saúde da Sprint</h3>**\n\n* Bloco visual de checklist para facilitar leitura rápida:\n\n  ```html\n  <ul>\n    <li>Planejamento revisado? ✅/⚠️/🔴</li>\n    <li>Bugs priorizados? ✅/⚠️/🔴</li>\n    <li>Carga equilibrada? ✅/⚠️/🔴</li>\n    <li>Tendência de entrega positiva? ✅/⚠️/🔴</li>\n  </ul>\n  ```\n\n**12. <h3>🧭 Ações Recomendadas</h3>**\n\n* Liste 4 a 6 ações táticas de maior impacto e urgência:\n\n  * Priorizar entregas P0/P1\n  * Reduzir tarefas em “Ready”\n  * Redistribuir tarefas de membros sobrecarregados\n  * Tratar bugs pendentes com prioridade\n  * Reavaliar meta da sprint se necessário\n  * Agendar reuniões de alinhamento para desbloquear gargalos\n\n---\n\n## Interpretações e Legendas\n\n### Status (`statusCounts`):\n\n* <strong>Ready:</strong> Pronto para desenvolver\n* <strong>In Progress:</strong> Em desenvolvimento\n* <strong>Blocked:</strong> Travado\n* <strong>Test:</strong> Em testes\n* <strong>Deployed to Production:</strong> Concluído\n* <strong>In Review / Waiting Evidence:</strong> Em avaliação\n\n### Prioridades (`priorityCounts`):\n\n* <strong>P0:</strong> Urgente (crítica)\n* <strong>P1:</strong> Alta prioridade\n* <strong>P2–P4:</strong> Normal\n* <strong>P5–P8:</strong> Baixa\n* <strong>No Priority:</strong> Não classificada\n\nInstruções para o campo body (HTML)\nNão use <html>, <head> ou <body>.\n\nUse:\n\n<div> para blocos visuais de destaque\n\n<h2>, <h3> para títulos\n\n<ul>, <li> para listas\n\n<strong> para destaques\n\nEmojis como: ✅ ⚠️ 🔴 🐞 📊 📈 🧠 🧭 ⬆️ ⬇️ ⏸️\n\nEscreva de forma clara, objetiva, crítica e com base apenas no JSON fornecido.\n\nAdicione um bloco <style> inline no início do conteúdo HTML contendo CSS compatível com Gmail (apenas propriedades suportadas, como cores de fundo, borda, espaçamento, fontes, barras de progresso e estilos de tabela).\n\nGaranta que o HTML seja responsivo, com excelente leitura tanto no desktop quanto no mobile, e evite classes que não sejam usadas no CSS inline.\n\nEstrutura e Análises Esperadas\nBloco de Alerta Executivo\n\n<h2>📑 Resumo Executivo</h2>\n\n<h2>🔴 Atenção Imediata</h2>\n\n<h2>📊 Visão Geral e Status Atual</h2>\n\n<h3>📈 Tendência e Previsão</h3>\n\n<h3>⚠️ Gargalos e Riscos</h3>\n\n<h3>🐞 Qualidade e Riscos Técnicos</h3>\n\n<h3>👥 Performance da Equipe</h3>\n\n<h3>🧠 Riscos Qualitativos</h3>\n\n<h3>📅 Histórico e Follow-up</h3>\n\n<h3>✅ Checklist de Saúde da Sprint</h3>\n\n<h3>🧭 Ações Recomendadas</h3>\n\nExemplo de inclusão do bloco de CSS para Gmail\nInclua, logo no início do HTML, algo como:\n\n```html\n<style>\n  body, table, td { font-family: Arial, sans-serif; color: #333; }\n  h1, h2 { color: #205375; }\n  h2 { border-bottom: 1px solid #cccccc; padding-bottom: 6px; margin-top: 28px; margin-bottom: 16px; }\n  .summary-alert { background: #fce4e4; color: #b71c1c; border-left: 6px solid #b71c1c; padding: 16px 16px 12px 16px; margin-bottom: 24px; font-size: 1.12em; font-weight: bold; }\n  .progress-bar-container { background: #eeeeee; border-radius: 8px; height: 24px; width: 100%; margin: 10px 0; }\n  .progress-bar { height: 24px; background: #205375; color: #fff; text-align: center; line-height: 24px; border-radius: 8px; font-weight: bold; }\n  table { width: 100%; border-collapse: collapse; margin-top: 14px; }\n  th, td { border: 1px solid #dddddd; padding: 8px; text-align: center; }\n  th { background: #f2f2f2; color: #205375; }\n  ul { margin: 0 0 12px 22px; }\n  li { margin-bottom: 5px; }\n  @media only screen and (max-width: 600px) {\n    table, thead, tbody, th, td, tr { display: block; width: 100% !important; }\n    .progress-bar-container, .progress-bar { height: 18px !important; font-size: 0.95em; }\n    .summary-alert { font-size: 1em; padding: 10px; }\n  }\n</style>\n```\nObs: só insira classes que realmente são usadas no corpo do HTML.\n\nObservações finais\nSeja objetivo, crítico e estratégico — seu público é executivo.\n\nEvite repetições, aumente a densidade informativa, entregue recomendações acionáveis.\n\nCaso não haja informação para alguma seção, omita-a.\n\nUtilize o HTML apenas para estruturação visual e ênfase, mantendo o conteúdo conciso e direto ao ponto.\n\nGaranta que o CSS inline seja totalmente compatível com Gmail: evite flex, grid, propriedades complexas e pseudo-elementos, priorize estilos simples de cor, borda, espaçamento e fonte.\n\nSeja objetivo, crítico e estratégico — seu público é executivo.\n\nEvite repetições, aumente a densidade informativa, entregue recomendações acionáveis.\n\nCaso não haja informação para alguma seção, omita-a.\n\nUtilize o HTML apenas para estruturação visual e ênfase, mantendo o conteúdo conciso e direto ao ponto.\n\n"
         }
       },
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 2,
       "position": [
-        1440,
+        1460,
         -20
       ],
       "id": "dc54dd90-cef9-4041-8675-417dc666dc05",
@@ -188,16 +185,16 @@
       "parameters": {
         "model": {
           "__rl": true,
-          "value": "gpt-4o-mini",
+          "value": "gpt-4.1-mini",
           "mode": "list",
-          "cachedResultName": "gpt-4o-mini"
+          "cachedResultName": "gpt-4.1-mini"
         },
         "options": {}
       },
       "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
       "typeVersion": 1.2,
       "position": [
-        1400,
+        1380,
         220
       ],
       "id": "3db2b125-11c9-438d-9516-5e4adbe7a9ef",
@@ -212,13 +209,13 @@
     {
       "parameters": {
         "sessionIdType": "customKey",
-        "sessionKey": "gpt-memory-store",
-        "contextWindowLength": 15
+        "sessionKey": "gpt-memory-store-sprint-analize",
+        "contextWindowLength": 10
       },
       "type": "@n8n/n8n-nodes-langchain.memoryRedisChat",
       "typeVersion": 1.5,
       "position": [
-        1560,
+        1540,
         220
       ],
       "id": "9ab131b3-1d12-46d0-9ca2-6db0371557a7",
@@ -237,8 +234,8 @@
       "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
       "typeVersion": 1.2,
       "position": [
-        1720,
-        220
+        1980,
+        200
       ],
       "id": "30090cc3-0c5b-486d-86ff-a05fdaf65938",
       "name": "Structured Output Parser"
@@ -284,9 +281,72 @@
       ],
       "id": "44f06707-8961-4c16-9f28-61e42aebba75",
       "name": "Set Params"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Você é um supervisor sênior de inteligência artificial especializado em análise de sprints e relatórios executivos. Sua função é revisar, criticar e refinar relatórios gerados por outro agente, tornando-os mais estratégicos, objetivos e visualmente adequados para Product Owners, Scrum Masters e lideranças técnicas.\n\n---\n\n## ⚙️ Input\n\nVocê analisará o relatório abaixo:\n\n1. Hoje é dia {{ $today.format('dd-MM-yyyy') }}.\n\n2. **Relatório Enviado pelo outro Agent**:  \n{{ $json.output }}\n\n3. **Dados brutos da sprint atual recebidos pelo primeiro Agent**\n   `{{ JSON.stringify($('process_data').all()[0].json, null, 2) }}`\n\n4. **Formato Esperado da Saída**:\n\n```json\n{\n  \"subject\": \"Análise da Sprint <Número>\",\n  \"body\": \"<HTML com análise atual vs. histórica>\"\n}\n",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=Você é um AI Supervisor sênior especializado em análise de sprints. Sua tarefa é revisar e aprimorar um relatório gerado por outro agente, tornando-o mais estratégico, objetivo e bem formatado.\n\n---\n\n## 🎯 Objetivo\n\nVocê deve:\n\n1. Corrigir estrutura lógica, remover seções duplicadas e reorganizar blocos para melhorar a leitura.\n2. Substituir trechos genéricos por análises reais baseadas no conteúdo.\n3. Reforçar previsões de entrega e leitura de riscos com base nos dados recebidos (ex: baixo percentual de entrega, bug ratio elevado, membros com carga desequilibrada).\n4. Melhorar a organização visual do HTML: usar títulos adequados (`<h2>`, `<h3>`), listas com `<ul>`, destaques com `<strong>`, e emojis como 📊 ⚠️ 🔴 ✅ 🐞 📈 🧭.\n5. Gerar um texto direto e estratégico — sem repetições, rodeios ou termos vagos.\n6. Eliminar redundâncias e aumentar a densidade informativa do relatório.\n\n---\n\n## 📈 Informações Complementares (quando disponíveis)\n\nSe o conteúdo mencionar gráficos, tendências ou indicadores históricos, utilize-os para enriquecer o texto com *interpretação qualitativa*, por exemplo:\n\n- “📉 A produtividade caiu nas últimas 3 sprints após um pico na Sprint 47”\n- “📈 A velocidade média mostra tendência de recuperação desde a Sprint 48”\n- “🐞 Apesar do aumento de entregas, o volume de bugs ainda permanece acima da média histórica”\n\nVocê **não precisa gerar gráficos**, apenas **usar os dados visuais descritos** (como produtividade por sprint, bugs entregues, produtividade individual) como referência interpretativa — se estiverem presentes no conteúdo analisado.\n\n---\n\n## 🧠 Dica Estratégica\n\nUse pensamento crítico e linguagem clara para:\n\n- Reestruturar frases fracas (“é necessário atenção”) em comandos acionáveis (“Redistribuir tarefas imediatamente entre membros com carga desproporcional”)\n- Transformar listas de números em insights (“39 tarefas em Ready indicam gargalo no início do fluxo”)\n- Enxugar repetições e deixar o HTML mais escaneável e executivo\n\n---\n\nÓtimo resultado! O conteúdo está **estrategicamente sólido**, com **boas previsões, leitura crítica e ações acionáveis**. Agora, seu feedback sobre **usar tabelas e barras de progresso** é excelente — isso pode elevar a clareza executiva e tornar o relatório ainda mais *scan-friendly*.\n\nAqui está como você pode **evoluir seu prompt** para permitir **uso de tabelas HTML e barras visuais**, sem comprometer a simplicidade nem a compatibilidade com o modelo `gpt-4o-mini`.\n\n---\n\n### ✅ Prompt Adicional: Suporte a Tabelas e Barras Visuais\n\nAdicione esta seção ao seu prompt atual:\n\n```plaintext\n---\n\n## 📊 Visualização Estruturada\n\nSempre que aplicável, utilize **tabelas HTML** para:\n\n- Comparar entregas e pendências por membro\n- Listar bugs por status e responsável\n- Resumo por status (`Ready`, `In progress`, etc.)\n- Distribuição por prioridade\n\nExemplo:\n<table>\n  <thead>\n    <tr><th>Membro</th><th>Pendentes</th><th>Entregues</th><th>Bug Ratio</th></tr>\n  </thead>\n  <tbody>\n    <tr><td>felipemarques-rec</td><td>40</td><td>0</td><td>33%</td></tr>\n    <tr><td>Ulisses-Pinheiro</td><td>24</td><td>13</td><td>20%</td></tr>\n  </tbody>\n</table>\n\n---\n\n## 📉 Barras de Progresso (HTML)\n\nUse `<div style>` para representar percentuais de entrega quando forem críticos para a leitura. Exemplo:\n\n<p><strong>Entrega da Sprint:</strong></p>\n<div style='width: 100%; background: #eee; border-radius: 6px;'>\n  <div style='width: 12%; background: #f44336; padding: 4px 0; color: white; text-align: center; border-radius: 6px;'>12%</div>\n</div>\n\nUse barras com:\n- Progresso da sprint\n- Entregas por prioridade (P0, P1...)\n- Bug ratio total ou por membro (se crítico)\n\n---\n\n✅ O uso de tabelas e barras é **opcional**, mas recomendado para relatórios com muitos números. Isso **melhora a clareza visual** sem exigir imagens ou gráficos.\n```\n\n---\n\n### 🔁 Resultado Esperado (exemplo adaptado)\n\n```html\n<h3>📊 Entrega da Sprint</h3>\n<p><strong>Progresso atual:</strong></p>\n<div style='width: 100%; background: #eee; border-radius: 6px;'>\n  <div style='width: 12%; background: #f44336; padding: 4px 0; color: white; text-align: center; border-radius: 6px;'>12%</div>\n</div>\n\n<h3>👥 Carga por Membro</h3>\n<table>\n  <thead>\n    <tr><th>Membro</th><th>Pendentes</th><th>Entregues</th><th>Bug Ratio</th></tr>\n  </thead>\n  <tbody>\n    <tr><td>matheuscarv69</td><td>0</td><td>28</td><td>0%</td></tr>\n    <tr><td>felipemarques-rec</td><td>40</td><td>0</td><td>33%</td></tr>\n  </tbody>\n</table>\n```\n\n---\n\n## ✅ Output\n\nRetorne o resultado no formato JSON com os campos:\n\n```json\n{\n  \"subject\": \"Análise da Sprint <Número>\",\n  \"body\": \"<HTML com seções otimizadas, linguagem executiva e interpretação estratégica>\"\n}\n\n\nEvite criar ou inventar dados. Trabalhe apenas com o conteúdo recebido, melhorando a qualidade e apresentação do texto.\n\n```"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        1800,
+        -20
+      ],
+      "id": "42158a2a-7cbb-4332-84bc-45ef2e3e33b5",
+      "name": "Supervisor"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4.1",
+          "mode": "list",
+          "cachedResultName": "gpt-4.1"
+        },
+        "options": {
+          "temperature": 0.4
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        1780,
+        200
+      ],
+      "id": "8c0793de-8f10-472c-a34b-b78384181184",
+      "name": "OpenAI Chat Model2",
+      "credentials": {
+        "openAiApi": {
+          "id": "BHXusSEU10unDNKa",
+          "name": "OpenAi account"
+        }
+      }
     }
   ],
-  "pinData": {},
+  "pinData": {
+    "Schedule Trigger": [
+      {
+        "json": {
+          "timestamp": "2025-05-27T06:00:00.743-03:00",
+          "Readable date": "May 27th 2025, 6:00:00 am",
+          "Readable time": "6:00:00 am",
+          "Day of week": "Tuesday",
+          "Year": "2025",
+          "Month": "May",
+          "Day of month": "27",
+          "Hour": "06",
+          "Minute": "00",
+          "Second": "00",
+          "Timezone": "America/Sao_Paulo (UTC-03:00)"
+        }
+      }
+    ]
+  },
   "connections": {
     "Schedule Trigger": {
       "main": [
@@ -387,7 +447,7 @@
       "main": [
         [
           {
-            "node": "Gmail",
+            "node": "Supervisor",
             "type": "main",
             "index": 0
           }
@@ -398,7 +458,7 @@
       "ai_outputParser": [
         [
           {
-            "node": "AI Agent",
+            "node": "Supervisor",
             "type": "ai_outputParser",
             "index": 0
           }
@@ -426,6 +486,28 @@
           }
         ]
       ]
+    },
+    "Supervisor": {
+      "main": [
+        [
+          {
+            "node": "Gmail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Supervisor",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": true,
@@ -434,7 +516,7 @@
     "timezone": "America/Sao_Paulo",
     "callerPolicy": "workflowsFromSameOwner"
   },
-  "versionId": "5cdbe272-a546-40c3-aa2c-59f3c87b7c35",
+  "versionId": "378449d5-9374-4683-8aec-a039191ae49b",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "680b771266285e0b2805aa12c56e24ddd5aa291181c2c29d2ca50bff81261932"
