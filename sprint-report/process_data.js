@@ -3,8 +3,7 @@ const { exit } = require('process');
 
 let projectData;
 let $input;
-let listSprints = [];
-let listIssues = [];
+let summarySprints = {};
 
 // Função auxiliar para verificar se um valor existe
 function exists(value) {
@@ -32,11 +31,11 @@ function calculateIssueDuration(createdAt, updatedAt) {
 	return Math.floor(durationMs / (1000 * 60 * 60 * 24));
 }
 
-function extractSprint(listSprint) {
+function extractSprint(listSprints) {
 	let targets = [];
 	let sprints = [];
 
-	for (let item of listSprint) {
+	for (let item of listSprints) {
 		if (item.name === 'Sprint') {
 			targets.push(item.configuration.iterations[0]);
 			targets.push(item.configuration.completedIterations[0]);
@@ -105,6 +104,21 @@ function extractIssues(listIssues) {
 	return issuesFormated;
 }
 
+function agregateSprintIssues(listSprints, listIssues) {
+	const sprintsAndIssues = listSprints.map((sprint) => {
+		const issuesRelacionadas = listIssues.filter(
+			(issue) => issue.sprint === sprint.title,
+		);
+
+		return {
+			...sprint,
+			issues: issuesRelacionadas,
+		};
+	});
+
+	return sprintsAndIssues;
+}
+
 // Verifica se estamos em ambiente local
 if (typeof $input === 'undefined') {
 	console.log('Ambiente local detectado, carregando data.json');
@@ -112,16 +126,17 @@ if (typeof $input === 'undefined') {
 	let localData = JSON.parse(fs.readFileSync('./data.json', 'utf8'));
 
 	$input = {
-		item: { json: localData[0] },
+		item: { json: localData },
 	};
 	console.log('Arquivo data.json carregado com sucesso');
 }
 
 try {
 	projectData = $input.item.json.data.organization.projectV2;
-	listSprints = extractSprint(projectData.fields.nodes);
-	listIssues = extractIssues(projectData.items.nodes);
-	console.log(listIssues);
+	summarySprints = agregateSprintIssues(
+		extractSprint(projectData.fields.nodes),
+		extractIssues(projectData.items.nodes),
+	);
 } catch (error) {
 	return {
 		json: {
@@ -132,8 +147,11 @@ try {
 	};
 }
 
-const summarySprints = {};
-const sprints = [];
+console.log(summarySprints);
+
+//console.log(JSON.stringify(sprintsComIssues));
+
+//console.log('sprintAgregation', listIssues);
 
 // Processa cada item da sprint atual
 // function processSprint(listSprint, listIssue) {
