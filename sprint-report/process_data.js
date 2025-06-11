@@ -3,6 +3,7 @@ const { exit } = require('process');
 
 let projectData;
 let $input;
+let sprintsStructured = {};
 let summarySprints = {};
 
 // Função auxiliar para verificar se um valor existe
@@ -133,7 +134,7 @@ if (typeof $input === 'undefined') {
 
 try {
 	projectData = $input.item.json.data.organization.projectV2;
-	summarySprints = agregateSprintIssues(
+	sprintsStructured = agregateSprintIssues(
 		extractSprint(projectData.fields.nodes),
 		extractIssues(projectData.items.nodes),
 	);
@@ -147,9 +148,7 @@ try {
 	};
 }
 
-console.log(summarySprints);
-
-//console.log(JSON.stringify(sprintsComIssues));
+//console.log(sprintsStructured);
 
 //console.log('sprintAgregation', listIssues);
 
