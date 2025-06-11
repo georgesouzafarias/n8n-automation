@@ -1,9 +1,9 @@
 const { exit } = require('process');
+const { CLIENT_RENEG_LIMIT } = require('tls');
 
 let projectData;
 let $input;
 let sprintsStructured = {};
-let summarySprints = {};
 
 // Função auxiliar para verificar se um valor existe
 function exists(value) {
@@ -147,13 +147,11 @@ try {
 	};
 }
 
-//console.log(sprintsStructured[0].issues[0]);
-
-const summarySprints1 = sprintsStructured.map(function (sprint) {
+const summarySprints = sprintsStructured.map(function (sprint) {
 	const totalIssues = sprint.issues.length;
 
 	const totalSprintEstimate = sprint.issues.reduce(function (acc, issue) {
-		acc + issue.estimate;
+		return acc + issue.estimate;
 	}, 0);
 
 	const listMember = [
@@ -171,7 +169,7 @@ const summarySprints1 = sprintsStructured.map(function (sprint) {
 			issue.state === 'CLOSED';
 		})
 		.reduce(function (acc) {
-			acc + issue.estimate;
+			return acc + issue.estimate;
 		}, 0);
 
 	const totalEstimatePending = sprint.issues
@@ -179,7 +177,7 @@ const summarySprints1 = sprintsStructured.map(function (sprint) {
 			issue.state === 'OPEN';
 		})
 		.reduce(function (acc) {
-			acc + issue.estimate;
+			return acc + issue.estimate;
 		}, 0);
 
 	const sprintCompletionRate =
@@ -195,7 +193,7 @@ const summarySprints1 = sprintsStructured.map(function (sprint) {
 			issue.state === 'CLOSED';
 		})
 		.reduce(function (acc) {
-			acc + 1;
+			return acc + 1;
 		}, 0);
 
 	const totalBugsPending = sprint.issues
@@ -206,7 +204,7 @@ const summarySprints1 = sprintsStructured.map(function (sprint) {
 			issue.state === 'OPEN';
 		})
 		.reduce(function (acc) {
-			acc + 1;
+			return acc + 1;
 		}, 0);
 
 	const totalBugs = totalBugsDelivered + totalBugsPending;
@@ -217,50 +215,99 @@ const summarySprints1 = sprintsStructured.map(function (sprint) {
 
 	const bugFixRate = totalBugs > 0 ? (totalBugsDelivered / totalBugs) * 100 : 0;
 
-	const issueCountByType = sprint.issues.map(function () {});
+	const listPriority = [
+		...new Set(
+			sprint.issues.map(function (issue) {
+				return issue.priority;
+			}),
+		),
+	];
 
-	console.log(
-		`
-		Sprint: ${sprint.title},
-		Total de Membros ${totalMembers};
-		Lista de Membros ${listMember};
-		Total de Issue ${totalIssues},
-		Total de Bugs ${totalBugs},
-		Total de Total de Pontos da Sprint ${totalSprintEstimate},
-		Total de Total de Pontos de Entregues ${totalEstimateDelivered},
-		Total de Total de Pontos de Pendentes ${totalEstimatePending},
-		Total de Total de Bugs Entregues ${totalBugsDelivered},
-		Total de Total de Bugs Pendentes ${totalBugsPending},
-		Sprint Throughput Rate ${issueThroughputRate},
-		Sprint Bug Throughput Rate ${bugFixRate}%,
-		Members Throughput Rate ${membersThroughputRate},
-		Porcentagem Entregues ${sprintCompletionRate}%
+	const issueCountByType = sprint.issues.reduce(function (acc, issue) {
+		{
+			const priority = issue.priority || 'No Priority';
+			acc[priority] = (acc[priority] || 0) + 1;
+			return acc;
+		}
+	}, {});
 
-		`,
-	);
+	const issueCountByAssignee = sprint.issues.reduce(function (acc, issue) {
+		const assignees = Array.isArray(issue.assignees)
+			? issue.assignees
+			: [issue.assignees];
+
+		assignees.forEach((assignee) => {
+			acc[assignee] = (acc[assignee] || 0) + 1;
+		});
+		return acc;
+	}, {});
+
+	const estimateTotalByAssignee = sprint.issues.reduce((acc, issue) => {
+		const assignees = Array.isArray(issue.assignees)
+			? issue.assignees
+			: [issue.assignees];
+
+		assignees.forEach((assignee) => {
+			acc[assignee] = (acc[assignee] || 0) + (issue.estimate || 0);
+		});
+
+		return acc;
+	}, {});
+
+	// console.log(
+	// 	`
+	// 	Sprint: ${sprint.title},
+	// 	Total de Membros ${totalMembers};
+	// 	Lista de Membros ${listMember};
+	// 	Total de Issue ${totalIssues},
+	// 	Total de Bugs ${totalBugs},
+	// 	Total de Total de Pontos da Sprint ${totalSprintEstimate},
+	// 	Total de Total de Pontos de Entregues ${totalEstimateDelivered},
+	// 	Total de Total de Pontos de Pendentes ${totalEstimatePending},
+	// 	Total de Total de Bugs Entregues ${totalBugsDelivered},
+	// 	Total de Total de Bugs Pendentes ${totalBugsPending},
+	// 	Sprint Throughput Rate ${issueThroughputRate},
+	// 	Sprint Bug Throughput Rate ${bugFixRate}%,
+	// 	Members Throughput Rate ${membersThroughputRate},
+	// 	Porcentagem Entregues ${sprintCompletionRate}%
+
+	// 	`,
+	// );
+
+	const { issues, ...sprintWithoutIssues } = sprint;
 
 	return {
-		...sprint,
+		...sprintWithoutIssues,
 		totalIssues,
-		totalBugs,
-		totalBugsDelivered,
-		totalBugsPending,
 		totalSprintEstimate,
+		listMember,
+		totalMembers,
 		totalEstimateDelivered,
 		totalEstimatePending,
 		sprintCompletionRate,
+		totalBugsDelivered,
+		totalBugsPending,
+		totalBugs,
 		issueThroughputRate,
+		membersThroughputRate,
 		bugFixRate,
+		listPriority,
+		issueCountByType,
+		issueCountByAssignee,
+		estimateTotalByAssignee,
 	};
 });
 
-// // Suporta ambos os ambientes (local e n8n)
-// if (typeof module !== 'undefined' && module.exports) {
-// 	const fs = require('fs');
+// Suporta ambos os ambientes (local e n8n)
+if (typeof module !== 'undefined' && module.exports) {
+	const fs = require('fs');
 
-// 	fs.writeFileSync('./analysis_result.json', JSON.stringify(summary, null, 2));
-// 	//console.log({ json: summary }); // Exibe no console para visualização
-// 	module.exports = { json: summary }; // Exporta para importação por outros módulos
-// } else {
-// 	return { json: summary }; // n8n
-// }
+	fs.writeFileSync(
+		'./analysis_result.json',
+		JSON.stringify(summarySprints, null, 2),
+	);
+	//console.log({ json: summary }); // Exibe no console para visualização
+	module.exports = { json: summarySprints }; // Exporta para importação por outros módulos
+} else {
+	return { json: summarySprints }; // n8n
+}
