@@ -166,17 +166,17 @@ const summarySprints = sprintsStructured.map(function (sprint) {
 
 	const totalEstimateDelivered = sprint.issues
 		.filter(function (issue) {
-			issue.state === 'CLOSED';
+			return issue.state === 'CLOSED';
 		})
-		.reduce(function (acc) {
+		.reduce(function (acc, issue) {
 			return acc + issue.estimate;
 		}, 0);
 
 	const totalEstimatePending = sprint.issues
 		.filter(function (issue) {
-			issue.state === 'OPEN';
+			return issue.state === 'OPEN';
 		})
-		.reduce(function (acc) {
+		.reduce(function (acc, issue) {
 			return acc + issue.estimate;
 		}, 0);
 
@@ -187,10 +187,10 @@ const summarySprints = sprintsStructured.map(function (sprint) {
 
 	const totalBugsDelivered = sprint.issues
 		.filter(function (issue) {
-			issue.issueType == 'Bug';
+			return issue.issueType == 'Bug';
 		})
 		.filter(function (issue) {
-			issue.state === 'CLOSED';
+			return issue.state === 'CLOSED';
 		})
 		.reduce(function (acc) {
 			return acc + 1;
@@ -198,10 +198,10 @@ const summarySprints = sprintsStructured.map(function (sprint) {
 
 	const totalBugsPending = sprint.issues
 		.filter(function (issue) {
-			issue.issueType == 'Bug';
+			return issue.issueType == 'Bug';
 		})
 		.filter(function (issue) {
-			issue.state === 'OPEN';
+			return issue.state === 'OPEN';
 		})
 		.reduce(function (acc) {
 			return acc + 1;
@@ -254,25 +254,37 @@ const summarySprints = sprintsStructured.map(function (sprint) {
 		return acc;
 	}, {});
 
-	// console.log(
-	// 	`
-	// 	Sprint: ${sprint.title},
-	// 	Total de Membros ${totalMembers};
-	// 	Lista de Membros ${listMember};
-	// 	Total de Issue ${totalIssues},
-	// 	Total de Bugs ${totalBugs},
-	// 	Total de Total de Pontos da Sprint ${totalSprintEstimate},
-	// 	Total de Total de Pontos de Entregues ${totalEstimateDelivered},
-	// 	Total de Total de Pontos de Pendentes ${totalEstimatePending},
-	// 	Total de Total de Bugs Entregues ${totalBugsDelivered},
-	// 	Total de Total de Bugs Pendentes ${totalBugsPending},
-	// 	Sprint Throughput Rate ${issueThroughputRate},
-	// 	Sprint Bug Throughput Rate ${bugFixRate}%,
-	// 	Members Throughput Rate ${membersThroughputRate},
-	// 	Porcentagem Entregues ${sprintCompletionRate}%
+	const estimateDeliveredByAssignee = sprint.issues
+		.filter(function (issue) {
+			return issue.state === 'CLOSED';
+		})
+		.reduce((acc, issue) => {
+			const assignees = Array.isArray(issue.assignees)
+				? issue.assignees
+				: [issue.assignees];
 
-	// 	`,
-	// );
+			assignees.forEach((assignee) => {
+				acc[assignee] = (acc[assignee] || 0) + (issue.estimate || 0);
+			});
+
+			return acc;
+		}, {});
+
+	const estimatePendingByAssignee = sprint.issues
+		.filter(function (issue) {
+			return issue.state === 'OPEN';
+		})
+		.reduce((acc, issue) => {
+			const assignees = Array.isArray(issue.assignees)
+				? issue.assignees
+				: [issue.assignees];
+
+			assignees.forEach((assignee) => {
+				acc[assignee] = (acc[assignee] || 0) + (issue.estimate || 0);
+			});
+
+			return acc;
+		}, {});
 
 	const { issues, ...sprintWithoutIssues } = sprint;
 
@@ -295,6 +307,8 @@ const summarySprints = sprintsStructured.map(function (sprint) {
 		issueCountByType,
 		issueCountByAssignee,
 		estimateTotalByAssignee,
+		estimateDeliveredByAssignee,
+		estimatePendingByAssignee,
 	};
 });
 
