@@ -148,6 +148,87 @@ try {
 	};
 }
 
+console.log(sprintsStructured[0].issues[0]);
+
+const summarySprints1 = sprintsStructured.map((sprint) => {
+	const totalIssues = sprint.issues.length;
+
+	const totalSprintEstimate = sprint.issues.reduce(
+		(acc, issue) => acc + issue.estimate,
+		0,
+	);
+
+	const totalEstimateDelivered = sprint.issues
+		.filter((issue) => issue.state === 'CLOSED')
+		.reduce((acc, issue) => acc + issue.estimate, 0);
+
+	const totalEstimatePending = sprint.issues
+		.filter((issue) => issue.state === 'OPEN')
+		.reduce((acc, issue) => acc + issue.estimate, 0);
+
+	const sprintCompletionRate =
+		totalSprintEstimate > 0
+			? (totalEstimateDelivered / totalSprintEstimate) * 100
+			: 0;
+
+	const totalBugsDelivered = sprint.issues
+		.filter((issue) => issue.issueType == 'Bug')
+		.filter((issue) => issue.state === 'CLOSED')
+		.reduce((acc, issue) => acc + 1, 0);
+
+	const totalBugsPending = sprint.issues
+		.filter((issue) => issue.issueType == 'Bug')
+		.filter((issue) => issue.state === 'OPEN')
+		.reduce((acc, issue) => acc + 1, 0);
+
+	const totalBugs = totalBugsDelivered + totalBugsPending;
+
+	const issueThroughputRate = totalEstimateDelivered / sprint.duration;
+
+	const bugFixRate = totalBugs > 0 ? (totalBugsDelivered / totalBugs) * 100 : 0;
+
+	const listMember = Array.from(
+		new Set(sprint.issues.flatMap((issue) => issue.assignees)),
+	);
+
+	const totalMembers = listMember.length;
+
+	console.log(
+		`
+		Sprint: ${sprint.title},
+		Total de Membros ${totalMembers};
+		Lista de Membros ${listMember};
+		Total de Issue ${totalIssues},
+		Total de Bugs ${totalBugs},
+		Total de Total de Pontos da Sprint ${totalSprintEstimate},
+		Total de Total de Pontos de Entregues ${totalEstimateDelivered},
+		Total de Total de Pontos de Pendentes ${totalEstimatePending},
+		Total de Total de Bugs Entregues ${totalBugsDelivered},
+		Total de Total de Bugs Pendentes ${totalBugsPending},
+		Sprint Throughput Rate ${issueThroughputRate},
+		Sprint Bug Throughput Rate ${bugFixRate}%,
+		Porcentagem Entregues ${sprintCompletionRate}%
+
+		`,
+	);
+
+	return {
+		...sprint,
+		totalIssues,
+		totalBugs,
+		totalBugsDelivered,
+		totalBugsPending,
+		totalSprintEstimate,
+		totalEstimateDelivered,
+		totalEstimatePending,
+		sprintCompletionRate,
+		issueThroughputRate,
+		bugFixRate,
+	};
+});
+
+//console.log(summarySprints1);
+
 //console.log(sprintsStructured);
 
 //console.log('sprintAgregation', listIssues);
