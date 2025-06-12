@@ -755,96 +755,262 @@ const emailHtml = `
       }
     }
 
-    /* Dark mode support */
+    /* Dark mode support - Otimizado para mobile */
     @media (prefers-color-scheme: dark) {
       body {
-        background-color: #1a1a1a;
-        color: #e8e8e8;
+        background-color: #000000;
+        color: #ffffff;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
       }
 
       .container {
-        background-color: #2d2d2d;
-        border: 1px solid #404040;
+        background-color: #1c1c1e;
+        border: 1px solid #38383a;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
       }
 
       .header {
-        background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
+        background: linear-gradient(135deg, #1d1d1f 0%, #000000 100%);
+        border-bottom: 1px solid #38383a;
       }
 
-      .stat-card,
-      .issue-table,
-      .sprint-info,
+      .stat-card {
+        background-color: #1c1c1e;
+        border: 1px solid #38383a;
+        border-top: 4px solid #007aff;
+        color: #ffffff;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+      }
+
+      .issue-table {
+        background-color: #1c1c1e;
+        border: 1px solid #38383a;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+      }
+
+      .sprint-info {
+        background: linear-gradient(135deg, #1c1c1e 0%, #2c2c2e 100%);
+        border: 1px solid #38383a;
+        border-left: 5px solid #007aff;
+        color: #ffffff;
+      }
+
       .summary-box {
-        background-color: #3d3d3d;
-        border-color: #4a5568;
-        color: #e8e8e8;
+        background: linear-gradient(135deg, #1c1c1e 0%, #2c2c2e 100%);
+        border: 1px solid #38383a;
+        border-left: 5px solid #34c759;
+        color: #ffffff;
       }
 
-      .stats-table th,
+      .stats-table th {
+        background-color: #2c2c2e;
+        color: #ffffff;
+        border-bottom: 2px solid #38383a;
+        font-weight: 600;
+      }
+
+      .stats-table td {
+        color: #ffffff;
+        border-bottom: 1px solid #38383a;
+      }
+
+      .stats-table tbody tr:hover {
+        background-color: #2c2c2e;
+      }
+
       .issue-table th {
-        background-color: #4a5568;
-        color: #f7fafc;
+        background: linear-gradient(135deg, #2c2c2e 0%, #1c1c1e 100%);
+        color: #ffffff;
+        border-bottom: 2px solid #38383a;
+        font-weight: 600;
       }
 
-      .stats-table td,
       .issue-table td {
-        color: #e8e8e8;
-        border-color: #4a5568;
+        color: #ffffff;
+        border-bottom: 1px solid #38383a;
+      }
+
+      .issue-table tbody tr:nth-child(even) {
+        background-color: #2c2c2e;
+      }
+
+      .issue-table tbody tr:hover {
+        background-color: #38383a;
       }
 
       .metric-highlight {
-        background-color: #4a5568;
-        color: #f7fafc;
+        background-color: #2c2c2e;
+        color: #ffffff;
+        border: 1px solid #38383a;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
       }
 
       .metric-value {
-        color: #f7fafc;
+        color: #ffffff;
+        font-weight: 700;
       }
 
       .metric-label {
-        color: #cbd5e0;
+        color: #8e8e93;
+        font-weight: 500;
       }
 
       h1, h2, h3 {
-        color: #f7fafc;
+        color: #ffffff;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+      }
+
+      /* Status row colors for better contrast */
+      .current-sprint-row {
+        background: linear-gradient(135deg, #1e3a1e 0%, #2d5a2d 100%) !important;
+        color: #ffffff !important;
+        border: 1px solid #34c759 !important;
+      }
+
+      .completion-100 {
+        background: linear-gradient(135deg, #1e3a1e 0%, #2d5a2d 100%) !important;
+        color: #ffffff !important;
+      }
+
+      .completion-high {
+        background: linear-gradient(135deg, #1e2a3a 0%, #2d4a5a 100%) !important;
+        color: #ffffff !important;
+      }
+
+      .completion-medium {
+        background: linear-gradient(135deg, #3a2a1e 0%, #5a4a2d 100%) !important;
+        color: #ffffff !important;
+      }
+
+      .completion-low {
+        background: linear-gradient(135deg, #3a1e1e 0%, #5a2d2d 100%) !important;
+        color: #ffffff !important;
+      }
+
+      /* Progress bars */
+      .progress-bar-container {
+        background-color: #2c2c2e;
+        border: 1px solid #38383a;
+      }
+
+      .progress-bar {
+        background: linear-gradient(90deg, #34c759 0%, #30d158 100%);
+        color: #000000;
+        font-weight: 700;
+      }
+
+      .mini-progress-bar-container {
+        background-color: #2c2c2e;
+        border: 1px solid #38383a;
+      }
+
+      .mini-progress-bar {
+        background: linear-gradient(90deg, #34c759 0%, #30d158 100%);
+        color: #000000;
+        font-weight: 700;
+      }
+
+      /* Links */
+      a {
+        color: #007aff;
+      }
+
+      a:hover {
+        color: #0051d0;
+      }
+
+      .footer {
+        color: #8e8e93;
+        border-top: 1px solid #38383a;
       }
 
       /* Mobile dark mode specific improvements */
       @media screen and (max-width: 768px) {
         body {
-          font-size: 16px;
-          line-height: 1.5;
+          font-size: 17px;
+          line-height: 1.6;
+          background-color: #000000;
+        }
+
+        .container {
+          border-radius: 0;
+          margin: 0;
         }
 
         .stats-table th,
-        .stats-table td,
+        .stats-table td {
+          font-size: 16px;
+          font-weight: 600;
+          padding: 12px 8px;
+        }
+
         .issue-table th,
         .issue-table td {
-          font-size: 15px;
-          font-weight: 500;
+          font-size: 16px;
+          font-weight: 600;
+          padding: 12px 8px;
         }
 
         .metric-value {
-          font-size: 22px;
+          font-size: 24px;
+          font-weight: 700;
+        }
+
+        .metric-label {
+          font-size: 14px;
           font-weight: 600;
+        }
+
+        h1 {
+          font-size: 26px;
+        }
+
+        h2 {
+          font-size: 22px;
+        }
+
+        h3 {
+          font-size: 18px;
         }
       }
 
       /* iPhone specific dark mode optimizations */
       @media screen and (max-width: 430px) {
+        body {
+          font-size: 18px;
+          line-height: 1.7;
+        }
+
         .issue-table th,
         .issue-table td {
-          font-size: 14px;
-          font-weight: 500;
-          line-height: 1.4;
+          font-size: 17px;
+          font-weight: 600;
+          line-height: 1.5;
+          padding: 14px 8px;
         }
 
         .stats-table th,
         .stats-table td {
-          font-size: 14px;
-          font-weight: 500;
+          font-size: 17px;
+          font-weight: 600;
+          padding: 14px 8px;
+        }
+
+        .metric-value {
+          font-size: 26px;
+          font-weight: 700;
+        }
+
+        .stat-card {
+          padding: 20px;
+          margin-bottom: 16px;
+        }
+
+        .sprint-info,
+        .summary-box {
+          padding: 20px;
+          margin-bottom: 16px;
         }
       }
     }
