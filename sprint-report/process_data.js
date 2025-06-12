@@ -1,8 +1,4 @@
-const { exit } = require('process');
-const { CLIENT_RENEG_LIMIT } = require('tls');
-
 let projectData;
-let $input;
 let sprintsStructured = {};
 
 // Função auxiliar para verificar se um valor existe
@@ -187,10 +183,7 @@ const summarySprints = sprintsStructured.map(function (sprint) {
 
 	const totalBugsDelivered = sprint.issues
 		.filter(function (issue) {
-			return issue.issueType == 'Bug';
-		})
-		.filter(function (issue) {
-			return issue.state === 'CLOSED';
+			return issue.issueType == 'Bug' && issue.state === 'CLOSED';
 		})
 		.reduce(function (acc) {
 			return acc + 1;
@@ -198,10 +191,11 @@ const summarySprints = sprintsStructured.map(function (sprint) {
 
 	const totalBugsPending = sprint.issues
 		.filter(function (issue) {
-			return issue.issueType == 'Bug';
-		})
-		.filter(function (issue) {
-			return issue.state === 'OPEN';
+			return (
+				issue.issueType == 'Bug' &&
+				sprint.currentSprint &&
+				issue.state === 'OPEN'
+			);
 		})
 		.reduce(function (acc) {
 			return acc + 1;
@@ -224,11 +218,21 @@ const summarySprints = sprintsStructured.map(function (sprint) {
 	];
 
 	const issueCountByType = sprint.issues.reduce(function (acc, issue) {
-		{
-			const priority = issue.priority || 'No Priority';
-			acc[priority] = (acc[priority] || 0) + 1;
-			return acc;
-		}
+		const issueType = issue.issueType;
+		acc[issueType] = (acc[issueType] || 0) + 1;
+		return acc;
+	}, {});
+
+	const issueCountByStatus = sprint.issues.reduce(function (acc, issue) {
+		const status = issue.status;
+		acc[status] = (acc[status] || 0) + 1;
+		return acc;
+	}, {});
+
+	const estimateTotalByStatus = sprint.issues.reduce(function (acc, issue) {
+		const status = issue.status;
+		acc[status] = (acc[status] || 0) + issue.estimate;
+		return acc;
 	}, {});
 
 	const issueCountByAssignee = sprint.issues.reduce(function (acc, issue) {
@@ -272,7 +276,7 @@ const summarySprints = sprintsStructured.map(function (sprint) {
 
 	const estimatePendingByAssignee = sprint.issues
 		.filter(function (issue) {
-			return issue.state === 'OPEN';
+			return issue.state === 'OPEN' && sprint.currentSprint;
 		})
 		.reduce((acc, issue) => {
 			const assignees = Array.isArray(issue.assignees)
@@ -285,6 +289,18 @@ const summarySprints = sprintsStructured.map(function (sprint) {
 
 			return acc;
 		}, {});
+
+	const carryOverEstimatePerSprint = sprint.issues.reduce((acc, issue) => {
+		issue.labels.forEach((label) => {
+			const labelName = label.name;
+
+			if (labelName.startsWith('Transbordo')) {
+				acc[labelName] = (acc[labelName] || 0) + (issue.estimate || 0);
+			}
+		});
+
+		return acc;
+	}, {});
 
 	const { issues, ...sprintWithoutIssues } = sprint;
 
@@ -309,6 +325,9 @@ const summarySprints = sprintsStructured.map(function (sprint) {
 		estimateTotalByAssignee,
 		estimateDeliveredByAssignee,
 		estimatePendingByAssignee,
+		issueCountByStatus,
+		estimateTotalByStatus,
+		carryOverEstimatePerSprint,
 	};
 });
 
@@ -320,8 +339,8 @@ if (typeof module !== 'undefined' && module.exports) {
 		'./analysis_result.json',
 		JSON.stringify(summarySprints, null, 2),
 	);
-	//console.log({ json: summary }); // Exibe no console para visualização
-	module.exports = { json: summarySprints }; // Exporta para importação por outros módulos
+
+	module.exports = { summarySprints };
 } else {
-	return { json: summarySprints }; // n8n
+	return { summarySprints }; // n8n
 }

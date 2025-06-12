@@ -4,36 +4,82 @@ function exists(value) {
 }
 
 // Tenta obter os dados do processamento anterior de forma robusta
-let summary;
+let sprintData;
 
 // Tenta várias estruturas possíveis
 if (exists($input)) {
 	if (exists($input.json)) {
 		if (Array.isArray($input.json) && $input.json.length > 0) {
-			summary = $input.json[0]; // Caso seja um array
+			sprintData = $input.json; // Array de sprints direto
+		} else if (
+			exists($input.json.summarySprints) &&
+			Array.isArray($input.json.summarySprints)
+		) {
+			sprintData = $input.json.summarySprints; // Dados em summarySprints
 		} else {
-			summary = $input.json; // Caso seja um objeto direto
+			sprintData = $input.json; // Caso seja um objeto direto
 		}
 	} else if (exists($input.item) && exists($input.item.json)) {
-		summary = $input.item.json; // Estrutura comum em n8n
+		if (
+			exists($input.item.json.summarySprints) &&
+			Array.isArray($input.item.json.summarySprints)
+		) {
+			sprintData = $input.item.json.summarySprints; // Estrutura n8n com summarySprints
+		} else if (Array.isArray($input.item.json)) {
+			sprintData = $input.item.json; // Array direto em item.json
+		} else {
+			sprintData = $input.item.json; // Estrutura comum em n8n
+		}
+	} else if (exists($input.context) && exists($input.item)) {
+		// Estrutura específica do n8n mostrada no erro
+		if (exists($input.item.json) && exists($input.item.json.summarySprints)) {
+			sprintData = $input.item.json.summarySprints;
+		}
 	} else {
-		summary = $input; // Último recurso
+		sprintData = $input; // Último recurso
 	}
 }
 
 // Se ainda não encontramos dados úteis
 if (
-	!exists(summary) ||
-	(!exists(summary.issuesByStatus) && !exists(summary.statusCounts))
+	!exists(sprintData) ||
+	!Array.isArray(sprintData) ||
+	sprintData.length === 0
 ) {
+	// Tentar identificar onde estão os dados para debug
+	let debugInfo = 'Estruturas encontradas: ';
+	if (exists($input.json)) debugInfo += 'json ';
+	if (exists($input.item)) debugInfo += 'item ';
+	if (exists($input.item) && exists($input.item.json))
+		debugInfo += 'item.json ';
+	if (
+		exists($input.item) &&
+		exists($input.item.json) &&
+		exists($input.item.json.summarySprints)
+	)
+		debugInfo += 'item.json.summarySprints ';
+	if (exists($input.context)) debugInfo += 'context ';
+
 	return {
 		json: {
 			error: true,
-			message: 'Não foi possível obter os dados do processamento anterior',
+			message: 'Não foi possível obter os dados das sprints',
+			debug: debugInfo,
+			sprintDataType: typeof sprintData,
+			sprintDataLength: Array.isArray(sprintData)
+				? sprintData.length
+				: 'not array',
 			inputStructure: JSON.stringify($input).substring(0, 500) + '...',
 		},
 	};
 }
+
+// Encontrar a sprint atual
+const currentSprint =
+	sprintData.find((sprint) => sprint.currentSprint) || sprintData[0];
+const lastSprints = sprintData
+	.filter((sprint) => !sprint.currentSprint)
+	.slice(0, 3);
 
 // Formatar a data atual
 const dateOptions = {
@@ -45,240 +91,206 @@ const dateOptions = {
 const today = new Date();
 const formattedDate = today.toLocaleDateString('pt-BR', dateOptions);
 
-// Criar estatísticas rápidas
+// Criar estatísticas rápidas para a sprint atual
 const quickStats = [];
 
-// Contador por status
-if (summary.statusCounts) {
-	const statusRows = Object.entries(summary.statusCounts)
-		.map(
-			([status, count]) =>
-				`<tr><td>${status}</td><td align="center"><b>${count}</b></td></tr>`,
-		)
-		.join('');
-
+// Sprint atual - informações básicas
+if (currentSprint) {
 	quickStats.push(`
-    <div class="stat-card">
-      <h3>Status</h3>
-      <table class="stats-table">
-        <tr><th>Status</th><th>Quantidade</th></tr>
-        ${statusRows}
-      </table>
-    </div>
-  `);
+		<div class="stat-card">
+			<h3>Sprint Atual: ${currentSprint.title}</h3>
+			<table class="stats-table">
+				<tr><th>Métrica</th><th>Valor</th></tr>
+				<tr><td>Total de Issues</td><td align="center"><b>${currentSprint.totalIssues}</b></td></tr>
+				<tr><td>Total de Membros</td><td align="center"><b>${currentSprint.totalMembers}</b></td></tr>
+				<tr><td>Estimativa Total</td><td align="center"><b>${currentSprint.totalSprintEstimate}</b> pontos</td></tr>
+				<tr><td>Taxa de Conclusão</td><td align="center"><b>${currentSprint.sprintCompletionRate}%</b></td></tr>
+			</table>
+		</div>
+	`);
+
+	// Progresso de entrega
+	quickStats.push(`
+		<div class="stat-card">
+			<h3>Progresso de Entrega</h3>
+			<table class="stats-table">
+				<tr><th>Status</th><th>Pontos</th></tr>
+				<tr><td>Entregues</td><td align="center"><b>${
+					currentSprint.totalEstimateDelivered
+				}</b></td></tr>
+				<tr><td>Pendentes</td><td align="center"><b>${
+					currentSprint.totalEstimatePending
+				}</b></td></tr>
+				<tr><td>Taxa de Issues</td><td align="center"><b>${currentSprint.issueThroughputRate.toFixed(
+					2,
+				)}</b></td></tr>
+				<tr><td>Taxa por Membro</td><td align="center"><b>${currentSprint.membersThroughputRate.toFixed(
+					2,
+				)}</b></td></tr>
+			</table>
+		</div>
+	`);
+
+	// Informações de bugs
+	quickStats.push(`
+		<div class="stat-card">
+			<h3>Status de Bugs</h3>
+			<table class="stats-table">
+				<tr><th>Métrica</th><th>Valor</th></tr>
+				<tr><td>Total de Bugs</td><td align="center"><b>${
+					currentSprint.totalBugs
+				}</b></td></tr>
+				<tr><td>Bugs Resolvidos</td><td align="center"><b>${
+					currentSprint.totalBugsDelivered
+				}</b></td></tr>
+				<tr><td>Bugs Pendentes</td><td align="center"><b>${
+					currentSprint.totalBugsPending
+				}</b></td></tr>
+				<tr><td>Taxa de Resolução</td><td align="center"><b>${currentSprint.bugFixRate.toFixed(
+					1,
+				)}%</b></td></tr>
+			</table>
+		</div>
+	`);
+
+	// Distribuição por prioridade
+	if (currentSprint.issueCountByType) {
+		const priorityRows = Object.entries(currentSprint.issueCountByType)
+			.sort(([a], [b]) => a.localeCompare(b))
+			.map(
+				([priority, count]) =>
+					`<tr><td>${priority}</td><td align="center"><b>${count}</b></td></tr>`,
+			)
+			.join('');
+
+		quickStats.push(`
+			<div class="stat-card">
+				<h3>Distribuição por Prioridade</h3>
+				<table class="stats-table">
+					<tr><th>Prioridade</th><th>Quantidade</th></tr>
+					${priorityRows}
+				</table>
+			</div>
+		`);
+	}
 }
 
-// Contador por prioridade
-if (summary.priorityCounts) {
-	const priorityRows = Object.entries(summary.priorityCounts)
-		.map(
-			([priority, count]) =>
-				`<tr><td>${priority}</td><td align="center"><b>${count}</b></td></tr>`,
-		)
-		.join('');
+// Criar detalhes por responsável para a sprint atual
+let memberDetails = '';
 
-	quickStats.push(`
-    <div class="stat-card">
-      <h3>Prioridade</h3>
-      <table class="stats-table">
-        <tr><th>Prioridade</th><th>Quantidade</th></tr>
-        ${priorityRows}
-      </table>
-    </div>
-  `);
-}
+if (currentSprint && currentSprint.issueCountByAssignee) {
+	memberDetails += '<h2>Detalhes por Responsável - Sprint Atual</h2>';
 
-// Contador por responsável
-if (summary.assigneeCounts) {
-	const assigneeRows = Object.entries(summary.assigneeCounts)
-		.map(
-			([assignee, count]) =>
-				`<tr><td>${assignee}</td><td align="center"><b>${count}</b></td></tr>`,
-		)
-		.join('');
+	// Criar tabela detalhada por membro
+	memberDetails += `
+		<div class="status-section">
+			<table class="issue-table">
+				<tr>
+					<th>Responsável</th>
+					<th>Issues</th>
+					<th>Estimativa Total</th>
+					<th>Entregue</th>
+					<th>Pendente</th>
+					<th>% Conclusão</th>
+				</tr>
+	`;
 
-	quickStats.push(`
-    <div class="stat-card">
-      <h3>Responsáveis</h3>
-      <table class="stats-table">
-        <tr><th>Responsável</th><th>Quantidade</th></tr>
-        ${assigneeRows}
-      </table>
-    </div>
-  `);
-}
+	Object.entries(currentSprint.issueCountByAssignee).forEach(
+		([assignee, issueCount]) => {
+			const totalEstimate =
+				currentSprint.estimateTotalByAssignee[assignee] || 0;
+			const deliveredEstimate =
+				currentSprint.estimateDeliveredByAssignee[assignee] || 0;
+			const pendingEstimate =
+				currentSprint.estimatePendingByAssignee[assignee] || 0;
+			const completionRate =
+				totalEstimate > 0
+					? ((deliveredEstimate / totalEstimate) * 100).toFixed(1)
+					: '0.0';
 
-// Contador por tipo de issue
-if (summary.issueTypeCounts) {
-	const typeRows = Object.entries(summary.issueTypeCounts)
-		.map(
-			([type, count]) =>
-				`<tr><td>${type}</td><td align="center"><b>${count}</b></td></tr>`,
-		)
-		.join('');
-
-	quickStats.push(`
-    <div class="stat-card">
-      <h3>Tipos de Issues</h3>
-      <table class="stats-table">
-        <tr><th>Tipo</th><th>Quantidade</th></tr>
-        ${typeRows}
-      </table>
-    </div>
-  `);
-}
-
-// Adicionar estatísticas de pontos estimados e entregues
-if (exists(summary.deliveredPoints) && exists(summary.pendingPoints)) {
-	quickStats.push(`
-    <div class="stat-card">
-      <h3>Progresso da Sprint</h3>
-      <table class="stats-table">
-        <tr><th>Métrica</th><th>Valor</th></tr>
-        <tr><td>Pontos Entregues</td><td align="center"><b>${summary.deliveredPoints}</b> (${summary.deliveredPercentage}%)</td></tr>
-        <tr><td>Pontos Pendentes</td><td align="center"><b>${summary.pendingPoints}</b> (${summary.pendingPercentage}%)</td></tr>
-        <tr><td>Total de Pontos</td><td align="center"><b>${summary.totalEstimatePoints}</b></td></tr>
-      </table>
-    </div>
-  `);
-}
-
-// Criar detalhes de cada status por assignee
-let statusDetails = '';
-
-// Se temos os dados detalhados dos responsáveis
-if (summary.assigneeDetails) {
-	statusDetails += '<h2>Detalhes por Responsável</h2>';
-
-	Object.entries(summary.assigneeDetails).forEach(([assignee, data]) => {
-		if (!data.issues || data.issues.length === 0) return;
-
-		statusDetails += `
-          <div class="status-section">
-            <h3>${assignee} <span class="count">(${data.issues.length} issues, ${data.totalEstimate} pontos)</span></h3>
-            <table class="issue-table">
-              <tr>
-                <th>Issue</th>
-                <th>Status</th>
-                <th>Prioridade</th>
-                <th>Estimativa</th>
-              </tr>
-        `;
-
-		// Listar issues do responsável
-		data.issues.forEach((issue) => {
-			// Verificar se é um objeto completo
-			if (!exists(issue) || !exists(issue.title)) {
-				return; // Pular issues incompletas
-			}
-
-			// Determinar a cor da linha baseada na prioridade
 			let rowClass = '';
-			if (issue.priority === 'P0') rowClass = 'priority-highest';
-			else if (issue.priority === 'P1') rowClass = 'priority-high';
+			if (completionRate == 100) rowClass = 'completion-100';
+			else if (completionRate >= 80) rowClass = 'completion-high';
+			else if (completionRate >= 50) rowClass = 'completion-medium';
+			else if (completionRate > 0) rowClass = 'completion-low';
 
-			// Adicionar linha da issue
-			statusDetails += `
-                <tr class="${rowClass}">
-                  <td><a href="${issue.url || '#'}" target="_blank">#${
-				issue.number || '?'
-			}: ${issue.title}</a></td>
-                  <td align="center">${issue.status || 'N/A'}</td>
-                  <td align="center">${issue.priority || 'N/A'}</td>
-                  <td align="center">${issue.estimate || 'N/A'}</td>
-                </tr>
-            `;
-		});
+			memberDetails += `
+			<tr class="${rowClass}">
+				<td><strong>${assignee}</strong></td>
+				<td align="center">${issueCount}</td>
+				<td align="center">${totalEstimate}</td>
+				<td align="center">${deliveredEstimate}</td>
+				<td align="center">${pendingEstimate}</td>
+				<td align="center">
+					<div class="mini-progress-bar-container">
+						<div class="mini-progress-bar" style="width: ${completionRate}%">
+							${completionRate}%
+						</div>
+					</div>
+				</td>
+			</tr>
+		`;
+		},
+	);
 
-		// Adicionar resumo de status
-		if (data.statusBreakdown) {
-			statusDetails += `
-                <tr class="status-summary">
-                  <td colspan="4">
-                    <strong>Resumo por Status:</strong>
-                    ${Object.entries(data.statusBreakdown)
-											.map(
-												([status, info]) =>
-													`${status}: ${info.count || 0} issues (${
-														info.points || 0
-													} pontos)`,
-											)
-											.join(', ')}
-                  </td>
-                </tr>
-            `;
-		}
-
-		statusDetails += `
-            </table>
-          </div>
-        `;
-	});
+	memberDetails += '</table></div>';
 }
 
-// Compatibilidade com o formato antigo, se disponível
-else if (summary.issuesByStatus) {
-	Object.entries(summary.issuesByStatus).forEach(([status, issues]) => {
-		// Pular se não houver issues
-		if (!issues || !issues.length) return;
+// Adicionar comparativo com sprints anteriores
+let sprintComparison = '';
 
-		// Cabeçalho do status
-		statusDetails += `
-      <div class="status-section">
-        <h2>${status} <span class="count">(${issues.length})</span></h2>
-        <table class="issue-table">
-          <tr>
-            <th>Issue</th>
-            <th>Prioridade</th>
-            <th>Estado</th>
-            <th>Responsáveis</th>
-            <th>Última atualização</th>
-          </tr>
-    `;
+if (lastSprints.length > 0) {
+	sprintComparison += '<h2>Comparativo com Sprints Anteriores</h2>';
 
-		// Listar as issues
-		issues.forEach((issue) => {
-			// Verificar se é um objeto completo
-			if (!exists(issue) || !exists(issue.title)) {
-				return; // Pular issues incompletas
-			}
+	sprintComparison += `
+		<div class="status-section">
+			<table class="issue-table">
+				<tr>
+					<th>Sprint</th>
+					<th>Período</th>
+					<th>Issues</th>
+					<th>Estimativa</th>
+					<th>Taxa Conclusão</th>
+					<th>Taxa Bugs</th>
+					<th>Throughput</th>
+				</tr>
+	`;
 
-			// Determinar a cor da linha baseada na prioridade
-			let rowClass = '';
-			if (issue.priority === 'P0') rowClass = 'priority-highest';
-			else if (issue.priority === 'P1') rowClass = 'priority-high';
+	// Adicionar sprint atual primeiro
+	if (currentSprint) {
+		sprintComparison += `
+			<tr class="current-sprint-row">
+				<td><strong>${currentSprint.title} (Atual)</strong></td>
+				<td>${new Date(currentSprint.startDate).toLocaleDateString(
+					'pt-BR',
+				)} - ${new Date(currentSprint.endDate).toLocaleDateString('pt-BR')}</td>
+				<td align="center">${currentSprint.totalIssues}</td>
+				<td align="center">${currentSprint.totalSprintEstimate}</td>
+				<td align="center">${currentSprint.sprintCompletionRate}%</td>
+				<td align="center">${currentSprint.bugFixRate.toFixed(1)}%</td>
+				<td align="center">${currentSprint.issueThroughputRate.toFixed(1)}</td>
+			</tr>
+		`;
+	}
 
-			// Formatar data de atualização
-			const updatedDate = exists(issue.updatedAt)
-				? new Date(issue.updatedAt).toLocaleDateString('pt-BR')
-				: 'N/A';
-
-			// Listar responsáveis
-			const assigneesList = Array.isArray(issue.assignees)
-				? issue.assignees.join(', ')
-				: '';
-
-			// Adicionar linha da issue
-			statusDetails += `
-        <tr class="${rowClass}">
-          <td><a href="${issue.url || '#'}" target="_blank">#${
-				issue.number || '?'
-			}: ${issue.title}</a></td>
-          <td align="center">${issue.priority || 'N/A'}</td>
-          <td align="center">${
-						issue.state === 'OPEN' ? 'Aberta' : 'Fechada'
-					}</td>
-          <td>${assigneesList}</td>
-          <td>${updatedDate}</td>
-        </tr>
-      `;
-		});
-
-		statusDetails += `
-        </table>
-      </div>
-    `;
+	// Adicionar sprints anteriores
+	lastSprints.forEach((sprint) => {
+		sprintComparison += `
+			<tr>
+				<td>${sprint.title}</td>
+				<td>${new Date(sprint.startDate).toLocaleDateString('pt-BR')} - ${new Date(
+			sprint.endDate,
+		).toLocaleDateString('pt-BR')}</td>
+				<td align="center">${sprint.totalIssues}</td>
+				<td align="center">${sprint.totalSprintEstimate}</td>
+				<td align="center">${sprint.sprintCompletionRate}%</td>
+				<td align="center">${sprint.bugFixRate.toFixed(1)}%</td>
+				<td align="center">${sprint.issueThroughputRate.toFixed(1)}</td>
+			</tr>
+		`;
 	});
+
+	sprintComparison += '</table></div>';
 }
 
 // Montar o HTML final
@@ -287,13 +299,15 @@ const emailHtml = `
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Resumo da Sprint: ${summary.projectTitle || 'Interlis Board'}</title>
+  <title>Resumo da Sprint: ${
+		currentSprint ? currentSprint.title : 'Relatório de Sprints'
+	}</title>
   <style>
     body {
       font-family: Arial, Helvetica, sans-serif;
       line-height: 1.6;
       color: #333;
-      max-width: 1000px;
+      max-width: 1200px;
       margin: 0 auto;
       padding: 20px;
     }
@@ -332,7 +346,7 @@ const emailHtml = `
 
     .stat-card {
       flex: 1;
-      min-width: 250px;
+      min-width: 300px;
       background-color: #f9f9f9;
       border-radius: 8px;
       padding: 15px;
@@ -376,6 +390,27 @@ const emailHtml = `
 
     .issue-table tr:nth-child(even) {
       background-color: #f9f9f9;
+    }
+
+    .current-sprint-row {
+      background-color: #e8f4f8 !important;
+      font-weight: bold;
+    }
+
+    .completion-100 {
+      background-color: #d4edda !important;
+    }
+
+    .completion-high {
+      background-color: #d1ecf1 !important;
+    }
+
+    .completion-medium {
+      background-color: #fff3cd !important;
+    }
+
+    .completion-low {
+      background-color: #f8d7da !important;
     }
 
     .status-summary {
@@ -425,17 +460,17 @@ const emailHtml = `
       background-color: #eee;
       border-radius: 5px;
       margin: 10px 0;
-      height: 20px;
+      height: 25px;
     }
 
     .progress-bar {
-      height: 20px;
+      height: 25px;
       background-color: #2C74B3;
       border-radius: 5px;
       color: white;
       text-align: center;
-      line-height: 20px;
-      font-size: 12px;
+      line-height: 25px;
+      font-size: 13px;
       font-weight: bold;
     }
 
@@ -467,45 +502,74 @@ const emailHtml = `
       text-align: center;
     }
 
-    .mini-progress-bar-container {
-      background-color: #eee;
-      border-radius: 5px;
-      height: 10px;
-      width: 100%;
-      margin: 5px 0;
+    .team-summary {
+      background-color: #f8f9fa;
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 30px;
     }
 
-    .mini-progress-bar {
-      height: 10px;
-      background-color: #2C74B3;
-      border-radius: 5px;
-      color: white;
+    .metric-highlight {
+      background-color: #fff;
+      border: 1px solid #dee2e6;
+      border-radius: 4px;
+      padding: 10px;
+      margin: 5px 0;
+      display: inline-block;
+      min-width: 120px;
       text-align: center;
-      line-height: 10px;
-      font-size: 10px;
-      font-weight: bold;
     }
   </style>
 </head>
 <body>
-  <h1>Resumo da Sprint: ${summary.projectTitle || 'Interlis Board'}</h1>
+  <h1>Relatório de Sprint - ${
+		currentSprint ? currentSprint.title : 'Análise Geral'
+	}</h1>
   <p class="date">Relatório gerado em: ${formattedDate}</p>
 
   ${
-		summary.currentSprint
+		currentSprint
 			? `
   <div class="sprint-info">
-    <h3>Sprint ${summary.currentSprint.title}</h3>
+    <h3>📊 Sprint Atual: ${currentSprint.title}</h3>
     <p><strong>Período:</strong> ${new Date(
-			summary.currentSprint.startDate,
+			currentSprint.startDate,
 		).toLocaleDateString('pt-BR')} a ${new Date(
-					summary.currentSprint.endDate,
-			  ).toLocaleDateString('pt-BR')}</p>
-    <p><strong>Duração:</strong> ${summary.currentSprint.duration} dias</p>
-    <p><strong>Progresso:</strong></p>
+					currentSprint.endDate,
+			  ).toLocaleDateString('pt-BR')} (${currentSprint.duration} dias)</p>
+
+    <div style="display: flex; gap: 10px; flex-wrap: wrap; margin: 15px 0;">
+      <div class="metric-highlight">
+        <div style="font-size: 24px; font-weight: bold; color: #2C74B3;">${
+					currentSprint.sprintCompletionRate
+				}%</div>
+        <div style="font-size: 12px; color: #666;">Taxa de Conclusão</div>
+      </div>
+      <div class="metric-highlight">
+        <div style="font-size: 24px; font-weight: bold; color: #28a745;">${
+					currentSprint.totalEstimateDelivered
+				}</div>
+        <div style="font-size: 12px; color: #666;">Pontos Entregues</div>
+      </div>
+      <div class="metric-highlight">
+        <div style="font-size: 24px; font-weight: bold; color: #dc3545;">${
+					currentSprint.totalEstimatePending
+				}</div>
+        <div style="font-size: 12px; color: #666;">Pontos Pendentes</div>
+      </div>
+      <div class="metric-highlight">
+        <div style="font-size: 24px; font-weight: bold; color: #ffc107;">${currentSprint.bugFixRate.toFixed(
+					1,
+				)}%</div>
+        <div style="font-size: 12px; color: #666;">Taxa Resolução Bugs</div>
+      </div>
+    </div>
+
     <div class="progress-bar-container">
-      <div class="progress-bar" style="width: ${summary.deliveredPercentage}%">
-        ${summary.deliveredPercentage}% Completo
+      <div class="progress-bar" style="width: ${
+				currentSprint.sprintCompletionRate
+			}%">
+        ${currentSprint.sprintCompletionRate}% Completo
       </div>
     </div>
   </div>
@@ -514,38 +578,29 @@ const emailHtml = `
 	}
 
   <div class="summary-box">
-    <p><strong>Total de issues:</strong> ${summary.totalIssues || 'N/A'}</p>
-    <p><strong>Issues abertas:</strong> ${summary.openIssues || 'N/A'}</p>
-    <p><strong>Issues fechadas:</strong> ${summary.closedIssues || 'N/A'}</p>
+    <h3>📈 Resumo Executivo</h3>
     ${
-			summary.totalEstimatePoints
-				? `<p><strong>Total de pontos:</strong> ${summary.totalEstimatePoints}</p>`
-				: ''
-		}
-    ${
-			summary.deliveredPoints
-				? `<p><strong>Pontos entregues:</strong> ${summary.deliveredPoints} (${summary.deliveredPercentage}%)</p>`
-				: ''
-		}
-    ${
-			summary.pendingPoints
-				? `<p><strong>Pontos pendentes:</strong> ${summary.pendingPoints} (${summary.pendingPercentage}%)</p>`
-				: ''
-		}
-    ${
-			summary.bugCount
-				? `<p><strong>Total de bugs:</strong> ${summary.bugCount} (${summary.bugPercentage}% das issues)</p>`
-				: ''
-		}
-    ${
-			summary.deliveredBugCount
-				? `<p><strong>Bugs resolvidos:</strong> ${summary.deliveredBugCount} (Taxa de resolução: ${summary.bugResolutionRate}%)</p>`
-				: ''
-		}
-    ${
-			summary.pendingBugCount
-				? `<p><strong>Bugs pendentes:</strong> ${summary.pendingBugCount}</p>`
-				: ''
+			currentSprint
+				? `
+    <p><strong>Sprint:</strong> ${currentSprint.title} (${
+						currentSprint.currentSprint ? 'Em andamento' : 'Finalizada'
+				  })</p>
+    <p><strong>Equipe:</strong> ${currentSprint.totalMembers} membros ativos</p>
+    <p><strong>Workload:</strong> ${
+			currentSprint.totalIssues
+		} issues totalizando ${currentSprint.totalSprintEstimate} pontos</p>
+    <p><strong>Performance:</strong> Taxa de throughput de ${currentSprint.issueThroughputRate.toFixed(
+			2,
+		)} issues/dia e ${currentSprint.membersThroughputRate.toFixed(
+						2,
+				  )} pontos/membro</p>
+    <p><strong>Qualidade:</strong> ${
+			currentSprint.totalBugs
+		} bugs no total, com ${currentSprint.bugFixRate.toFixed(
+						1,
+				  )}% de taxa de resolução</p>
+    `
+				: '<p>Dados de sprint não disponíveis</p>'
 		}
   </div>
 
@@ -553,91 +608,13 @@ const emailHtml = `
     ${quickStats.join('')}
   </div>
 
-  ${
-		summary.assigneeBugCounts &&
-		Object.keys(summary.assigneeBugCounts).length > 0
-			? `
-  <h2>Distribuição de Bugs por Responsável</h2>
-  <div class="stats-container">
-    <div class="stat-card" style="flex: 2; min-width: 400px;">
-      <h3>Contador de Bugs por Responsável</h3>
-      <table class="stats-table">
-        <tr>
-          <th>Responsável</th>
-          <th>Bugs</th>
-          <th>% de Bugs</th>
-          <th>Total Issues</th>
-        </tr>
-        ${Object.entries(summary.assigneeBugCounts)
-					.map(
-						([assignee, count]) => `
-          <tr>
-            <td>${assignee}</td>
-            <td align="center"><b>${count}</b></td>
-            <td align="center">${summary.assigneeBugRatio[assignee] || 0}%</td>
-            <td align="center">${summary.assigneeCounts[assignee] || 0}</td>
-          </tr>
-        `,
-					)
-					.join('')}
-      </table>
-    </div>
-  </div>
-  `
-			: ''
-	}
+  ${memberDetails}
 
-  ${
-		summary.assigneeEstimates &&
-		Object.keys(summary.assigneeEstimates).length > 0
-			? `
-  <h2>Progresso por Responsável</h2>
-  <div class="stats-container">
-    <div class="stat-card" style="flex: 2; min-width: 400px;">
-      <h3>Pontos por Responsável</h3>
-      <table class="stats-table">
-        <tr>
-          <th>Responsável</th>
-          <th>Pontos Entregues</th>
-          <th>Pontos Pendentes</th>
-          <th>Total Pontos</th>
-          <th>% Conclusão</th>
-        </tr>
-        ${Object.entries(summary.assigneeEstimates)
-					.filter(([_, data]) => data.total > 0)
-					.map(([assignee, data]) => {
-						const completionPercentage =
-							data.total > 0
-								? Math.round((data.delivered / data.total) * 100)
-								: 0;
-						return `
-          <tr>
-            <td>${assignee}</td>
-            <td align="center"><b>${data.delivered}</b></td>
-            <td align="center">${data.pending}</td>
-            <td align="center">${data.total}</td>
-            <td align="center">
-              <div class="mini-progress-bar-container">
-                <div class="mini-progress-bar" style="width: ${completionPercentage}%">
-                  ${completionPercentage}%
-                </div>
-              </div>
-            </td>
-          </tr>
-          `;
-					})
-					.join('')}
-      </table>
-    </div>
-  </div>
-  `
-			: ''
-	}
-
-  ${statusDetails}
+  ${sprintComparison}
 
   <div class="footer">
-    <p>Este relatório é gerado automaticamente pela automação n8n.</p>
+    <p>Este relatório é gerado automaticamente pela automação n8n do time Interlis.</p>
+    <p>Dados extraídos do GitHub Projects em ${formattedDate}</p>
   </div>
 </body>
 </html>
@@ -647,8 +624,18 @@ const emailHtml = `
 return {
 	json: {
 		emailHtml: emailHtml,
-		subject: `Relatório Diário da Sprint: ${
-			summary.projectTitle || 'Interlis Board'
+		subject: `📊 Relatório Sprint ${
+			currentSprint ? currentSprint.title : 'Análise'
 		} - ${today.toLocaleDateString('pt-BR')}`,
+		summary: {
+			sprintTitle: currentSprint ? currentSprint.title : 'N/A',
+			completionRate: currentSprint ? currentSprint.sprintCompletionRate : 0,
+			totalIssues: currentSprint ? currentSprint.totalIssues : 0,
+			totalMembers: currentSprint ? currentSprint.totalMembers : 0,
+			bugFixRate: currentSprint ? currentSprint.bugFixRate.toFixed(1) : '0.0',
+			throughputRate: currentSprint
+				? currentSprint.issueThroughputRate.toFixed(2)
+				: '0.00',
+		},
 	},
 };
