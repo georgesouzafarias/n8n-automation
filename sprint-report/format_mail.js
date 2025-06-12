@@ -98,13 +98,21 @@ const quickStats = [];
 if (currentSprint) {
 	quickStats.push(`
 		<div class="stat-card">
-			<h3>Sprint Atual: ${currentSprint.title}</h3>
+			<h3>📊 Sprint Atual: ${currentSprint.title}</h3>
 			<table class="stats-table">
 				<tr><th>Métrica</th><th>Valor</th></tr>
-				<tr><td>Total de Issues</td><td align="center"><b>${currentSprint.totalIssues}</b></td></tr>
-				<tr><td>Total de Membros</td><td align="center"><b>${currentSprint.totalMembers}</b></td></tr>
-				<tr><td>Estimativa Total</td><td align="center"><b>${currentSprint.totalSprintEstimate}</b> pontos</td></tr>
-				<tr><td>Taxa de Conclusão</td><td align="center"><b>${currentSprint.sprintCompletionRate}%</b></td></tr>
+				<tr><td>Total de Issues</td><td align="center"><b>${
+					currentSprint.totalIssues
+				}</b></td></tr>
+				<tr><td>Total de Membros</td><td align="center"><b>${
+					currentSprint.totalMembers
+				}</b></td></tr>
+				<tr><td>Estimativa Total</td><td align="center"><b>${
+					currentSprint.totalSprintEstimate
+				}</b> pontos</td></tr>
+				<tr><td>Taxa de Conclusão</td><td align="center"><b>${currentSprint.sprintCompletionRate.toFixed(
+					2,
+				)}%</b></td></tr>
 			</table>
 		</div>
 	`);
@@ -112,7 +120,7 @@ if (currentSprint) {
 	// Progresso de entrega
 	quickStats.push(`
 		<div class="stat-card">
-			<h3>Progresso de Entrega</h3>
+			<h3>🎯 Progresso de Entrega</h3>
 			<table class="stats-table">
 				<tr><th>Status</th><th>Pontos</th></tr>
 				<tr><td>Entregues</td><td align="center"><b>${
@@ -122,11 +130,11 @@ if (currentSprint) {
 					currentSprint.totalEstimatePending
 				}</b></td></tr>
 				<tr><td>Taxa de Issues</td><td align="center"><b>${currentSprint.issueThroughputRate.toFixed(
-					2,
-				)}</b></td></tr>
+					1,
+				)}</b>/dia</td></tr>
 				<tr><td>Taxa por Membro</td><td align="center"><b>${currentSprint.membersThroughputRate.toFixed(
-					2,
-				)}</b></td></tr>
+					1,
+				)}</b> pts</td></tr>
 			</table>
 		</div>
 	`);
@@ -134,7 +142,7 @@ if (currentSprint) {
 	// Informações de bugs
 	quickStats.push(`
 		<div class="stat-card">
-			<h3>Status de Bugs</h3>
+			<h3>🐛 Status de Bugs</h3>
 			<table class="stats-table">
 				<tr><th>Métrica</th><th>Valor</th></tr>
 				<tr><td>Total de Bugs</td><td align="center"><b>${
@@ -153,22 +161,88 @@ if (currentSprint) {
 		</div>
 	`);
 
-	// Distribuição por prioridade
+	// Distribuição por tipo de issue
 	if (currentSprint.issueCountByType) {
-		const priorityRows = Object.entries(currentSprint.issueCountByType)
-			.sort(([a], [b]) => a.localeCompare(b))
-			.map(
-				([priority, count]) =>
-					`<tr><td>${priority}</td><td align="center"><b>${count}</b></td></tr>`,
-			)
+		const typeRows = Object.entries(currentSprint.issueCountByType)
+			.sort(([, a], [, b]) => b - a)
+			.map(([type, count]) => {
+				const percentage = ((count / currentSprint.totalIssues) * 100).toFixed(
+					1,
+				);
+				let emoji = '';
+				switch (type) {
+					case 'Bug':
+						emoji = '🐛';
+						break;
+					case 'Feature':
+						emoji = '✨';
+						break;
+					case 'Task':
+						emoji = '📋';
+						break;
+					case 'Spike':
+						emoji = '🔍';
+						break;
+					default:
+						emoji = '📝';
+				}
+				return `<tr><td>${emoji} ${type}</td><td align="center"><b>${count}</b></td><td align="center">${percentage}%</td></tr>`;
+			})
 			.join('');
 
 		quickStats.push(`
 			<div class="stat-card">
-				<h3>Distribuição por Prioridade</h3>
+				<h3>📈 Distribuição por Tipo</h3>
 				<table class="stats-table">
-					<tr><th>Prioridade</th><th>Quantidade</th></tr>
-					${priorityRows}
+					<tr><th>Tipo</th><th>Qtd</th><th>%</th></tr>
+					${typeRows}
+				</table>
+			</div>
+		`);
+	}
+
+	// Status atual das issues
+	if (currentSprint.issueCountByStatus) {
+		const statusRows = Object.entries(currentSprint.issueCountByStatus)
+			.sort(([, a], [, b]) => b - a)
+			.map(([status, count]) => {
+				const points = currentSprint.estimateTotalByStatus[status] || 0;
+				let emoji = '';
+				switch (status) {
+					case 'Ready':
+						emoji = '⏳';
+						break;
+					case 'In progress':
+						emoji = '🔄';
+						break;
+					case 'In review':
+						emoji = '👀';
+						break;
+					case 'Test':
+						emoji = '🧪';
+						break;
+					case 'Blocked':
+						emoji = '🚫';
+						break;
+					case 'Deployed to Production':
+						emoji = '🚀';
+						break;
+					case 'Deployed to Staging':
+						emoji = '🏗️';
+						break;
+					default:
+						emoji = '📝';
+				}
+				return `<tr><td>${emoji} ${status}</td><td align="center"><b>${count}</b></td><td align="center">${points}</td></tr>`;
+			})
+			.join('');
+
+		quickStats.push(`
+			<div class="stat-card">
+				<h3>🔄 Status das Issues</h3>
+				<table class="stats-table">
+					<tr><th>Status</th><th>Qtd</th><th>Pts</th></tr>
+					${statusRows}
 				</table>
 			</div>
 		`);
@@ -179,7 +253,7 @@ if (currentSprint) {
 let memberDetails = '';
 
 if (currentSprint && currentSprint.issueCountByAssignee) {
-	memberDetails += '<h2>Detalhes por Responsável - Sprint Atual</h2>';
+	memberDetails += '<h2>👥 Detalhes por Responsável - Sprint Atual</h2>';
 
 	// Criar tabela detalhada por membro
 	memberDetails += `
@@ -236,11 +310,61 @@ if (currentSprint && currentSprint.issueCountByAssignee) {
 	memberDetails += '</table></div>';
 }
 
+// Adicionar análise de carry over
+let carryOverAnalysis = '';
+
+if (
+	currentSprint &&
+	currentSprint.carryOverEstimatePerSprint &&
+	Object.keys(currentSprint.carryOverEstimatePerSprint).length > 0
+) {
+	carryOverAnalysis += '<h2>📦 Análise de Carry Over</h2>';
+
+	const carryOverEntries = Object.entries(
+		currentSprint.carryOverEstimatePerSprint,
+	).sort(([, a], [, b]) => b - a);
+
+	const totalCarryOver = carryOverEntries.reduce(
+		(sum, [, points]) => sum + points,
+		0,
+	);
+	const carryOverPercentage = (
+		(totalCarryOver / currentSprint.totalSprintEstimate) *
+		100
+	).toFixed(1);
+
+	carryOverAnalysis += `
+		<div class="summary-box">
+			<p><strong>Total de Carry Over:</strong> ${totalCarryOver} pontos (${carryOverPercentage}% da sprint)</p>
+		</div>
+		<div class="status-section">
+			<table class="issue-table">
+				<tr>
+					<th>Sprint de Origem</th>
+					<th>Pontos</th>
+					<th>% do Total</th>
+				</tr>
+	`;
+
+	carryOverEntries.forEach(([sprintName, points]) => {
+		const percentage = ((points / totalCarryOver) * 100).toFixed(1);
+		carryOverAnalysis += `
+			<tr>
+				<td>${sprintName}</td>
+				<td align="center"><b>${points}</b></td>
+				<td align="center">${percentage}%</td>
+			</tr>
+		`;
+	});
+
+	carryOverAnalysis += '</table></div>';
+}
+
 // Adicionar comparativo com sprints anteriores
 let sprintComparison = '';
 
 if (lastSprints.length > 0) {
-	sprintComparison += '<h2>Comparativo com Sprints Anteriores</h2>';
+	sprintComparison += '<h2>📊 Comparativo com Sprints Anteriores</h2>';
 
 	sprintComparison += `
 		<div class="status-section">
@@ -250,9 +374,8 @@ if (lastSprints.length > 0) {
 					<th>Período</th>
 					<th>Issues</th>
 					<th>Estimativa</th>
-					<th>Taxa Conclusão</th>
-					<th>Taxa Bugs</th>
 					<th>Throughput</th>
+					<th>Observações</th>
 				</tr>
 	`;
 
@@ -266,9 +389,10 @@ if (lastSprints.length > 0) {
 				)} - ${new Date(currentSprint.endDate).toLocaleDateString('pt-BR')}</td>
 				<td align="center">${currentSprint.totalIssues}</td>
 				<td align="center">${currentSprint.totalSprintEstimate}</td>
-				<td align="center">${currentSprint.sprintCompletionRate}%</td>
-				<td align="center">${currentSprint.bugFixRate.toFixed(1)}%</td>
 				<td align="center">${currentSprint.issueThroughputRate.toFixed(1)}</td>
+				<td align="center">✅ ${currentSprint.sprintCompletionRate.toFixed(
+					2,
+				)}% concluído</td>
 			</tr>
 		`;
 	}
@@ -283,9 +407,8 @@ if (lastSprints.length > 0) {
 		).toLocaleDateString('pt-BR')}</td>
 				<td align="center">${sprint.totalIssues}</td>
 				<td align="center">${sprint.totalSprintEstimate}</td>
-				<td align="center">${sprint.sprintCompletionRate}%</td>
-				<td align="center">${sprint.bugFixRate.toFixed(1)}%</td>
 				<td align="center">${sprint.issueThroughputRate.toFixed(1)}</td>
+				<td align="center">🏁 Finalizada</td>
 			</tr>
 		`;
 	});
@@ -299,58 +422,142 @@ const emailHtml = `
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Resumo da Sprint: ${
-		currentSprint ? currentSprint.title : 'Relatório de Sprints'
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Relatório Sprint - ${
+		currentSprint ? currentSprint.title : 'Análise Geral'
 	}</title>
   <style>
+    /* Reset e base */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
     body {
-      font-family: Arial, Helvetica, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
       line-height: 1.6;
       color: #333;
+      background-color: #f8f9fa;
+      padding: 20px;
       max-width: 1200px;
       margin: 0 auto;
-      padding: 20px;
+    }
+
+    .container {
+      background-color: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      overflow: hidden;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 30px;
+      text-align: center;
     }
 
     h1 {
-      color: #205375;
-      border-bottom: 2px solid #205375;
-      padding-bottom: 10px;
-      margin-bottom: 30px;
+      font-size: 28px;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+
+    .date {
+      font-size: 16px;
+      opacity: 0.9;
+    }
+
+    .content {
+      padding: 30px;
     }
 
     h2 {
-      color: #2C74B3;
-      margin-top: 30px;
-      padding-bottom: 5px;
-      border-bottom: 1px solid #ddd;
+      color: #2c3e50;
+      margin: 30px 0 20px 0;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #ecf0f1;
+      font-size: 24px;
     }
 
     h3 {
-      color: #0A2647;
-      margin-top: 0;
+      color: #34495e;
+      margin-bottom: 15px;
+      font-size: 18px;
     }
 
-    .count {
-      font-size: 0.8em;
-      color: #666;
-      font-weight: normal;
+    /* Sprint Info Card */
+    .sprint-info {
+      background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+      border-radius: 12px;
+      padding: 25px;
+      margin-bottom: 30px;
+      border-left: 5px solid #2196f3;
     }
 
-    .stats-container {
+    .sprint-metrics {
       display: flex;
       flex-wrap: wrap;
+      gap: 15px;
+      margin: 20px 0;
+    }
+
+    .metric-highlight {
+      background: white;
+      border-radius: 8px;
+      padding: 15px;
+      flex: 1;
+      min-width: 120px;
+      text-align: center;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .metric-value {
+      font-size: 24px;
+      font-weight: bold;
+      color: #2c3e50;
+    }
+
+    .metric-label {
+      font-size: 12px;
+      color: #7f8c8d;
+      margin-top: 5px;
+    }
+
+    .progress-bar-container {
+      background-color: #ecf0f1;
+      border-radius: 10px;
+      height: 20px;
+      margin: 15px 0;
+      overflow: hidden;
+    }
+
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, #4caf50 0%, #45a049 100%);
+      color: white;
+      text-align: center;
+      line-height: 20px;
+      font-size: 12px;
+      font-weight: bold;
+      transition: width 0.3s ease;
+    }
+
+    /* Stats Grid */
+    .stats-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
       gap: 20px;
       margin-bottom: 30px;
     }
 
     .stat-card {
-      flex: 1;
-      min-width: 300px;
-      background-color: #f9f9f9;
-      border-radius: 8px;
-      padding: 15px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      border-top: 4px solid #3498db;
     }
 
     .stats-table {
@@ -358,76 +565,112 @@ const emailHtml = `
       border-collapse: collapse;
     }
 
-    .stats-table th, .stats-table td {
-      padding: 8px;
+    .stats-table th,
+    .stats-table td {
+      padding: 10px 8px;
       text-align: left;
-      border-bottom: 1px solid #ddd;
+      border-bottom: 1px solid #ecf0f1;
     }
 
     .stats-table th {
-      background-color: #f2f2f2;
+      background-color: #f8f9fa;
+      font-weight: 600;
+      color: #2c3e50;
     }
 
+    .stats-table tbody tr:hover {
+      background-color: #f8f9fa;
+    }
+
+    /* Issue Tables */
     .status-section {
-      margin-bottom: 40px;
+      margin-bottom: 30px;
     }
 
     .issue-table {
       width: 100%;
       border-collapse: collapse;
-      margin-top: 10px;
+      background: white;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
 
-    .issue-table th, .issue-table td {
-      padding: 10px;
-      border: 1px solid #ddd;
+    .issue-table th,
+    .issue-table td {
+      padding: 12px;
+      border-bottom: 1px solid #ecf0f1;
     }
 
     .issue-table th {
-      background-color: #f2f2f2;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      font-weight: 600;
       text-align: left;
     }
 
-    .issue-table tr:nth-child(even) {
-      background-color: #f9f9f9;
+    .issue-table tbody tr:nth-child(even) {
+      background-color: #f8f9fa;
     }
 
+    .issue-table tbody tr:hover {
+      background-color: #e3f2fd;
+    }
+
+    /* Status Classes */
     .current-sprint-row {
-      background-color: #e8f4f8 !important;
+      background: linear-gradient(135deg, #e8f5e8 0%, #c8e6c9 100%) !important;
       font-weight: bold;
     }
 
     .completion-100 {
-      background-color: #d4edda !important;
+      background: linear-gradient(135deg, #e8f5e8 0%, #c8e6c9 100%) !important;
     }
 
     .completion-high {
-      background-color: #d1ecf1 !important;
+      background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%) !important;
     }
 
     .completion-medium {
-      background-color: #fff3cd !important;
+      background: linear-gradient(135deg, #fff3e0 0%, #ffcc02 100%) !important;
     }
 
     .completion-low {
-      background-color: #f8d7da !important;
+      background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%) !important;
     }
 
-    .status-summary {
-      background-color: #eef6ff !important;
-      font-size: 0.9em;
+    /* Progress Bars */
+    .mini-progress-bar-container {
+      background-color: #ecf0f1;
+      border-radius: 10px;
+      height: 16px;
+      width: 100%;
+      overflow: hidden;
     }
 
-    .priority-highest {
-      background-color: #ffeeee !important;
+    .mini-progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, #4caf50 0%, #45a049 100%);
+      color: white;
+      text-align: center;
+      line-height: 16px;
+      font-size: 11px;
+      font-weight: bold;
+      transition: width 0.3s ease;
     }
 
-    .priority-high {
-      background-color: #fff8e1 !important;
+    /* Summary Box */
+    .summary-box {
+      background: linear-gradient(135deg, #f0f8ff 0%, #e6f3ff 100%);
+      border-left: 5px solid #2196f3;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 30px;
     }
 
+    /* Links */
     a {
-      color: #2C74B3;
+      color: #3498db;
       text-decoration: none;
     }
 
@@ -435,186 +678,279 @@ const emailHtml = `
       text-decoration: underline;
     }
 
-    .date {
-      font-style: italic;
-      color: #666;
-      margin-bottom: 30px;
-    }
-
-    .summary-box {
-      background-color: #e9f5ff;
-      border-left: 4px solid #2C74B3;
-      padding: 15px;
-      margin-bottom: 30px;
-    }
-
-    .sprint-info {
-      background-color: #f0f8ff;
-      border-radius: 8px;
-      padding: 15px;
-      margin-bottom: 30px;
-      border: 1px solid #d1e3ff;
-    }
-
-    .progress-bar-container {
-      background-color: #eee;
-      border-radius: 5px;
-      margin: 10px 0;
-      height: 25px;
-    }
-
-    .progress-bar {
-      height: 25px;
-      background-color: #2C74B3;
-      border-radius: 5px;
-      color: white;
-      text-align: center;
-      line-height: 25px;
-      font-size: 13px;
-      font-weight: bold;
-    }
-
-    .mini-progress-bar-container {
-      background-color: #eee;
-      border-radius: 3px;
-      margin: 0;
-      height: 15px;
-      width: 100%;
-    }
-
-    .mini-progress-bar {
-      height: 15px;
-      background-color: #4CAF50;
-      border-radius: 3px;
-      color: white;
-      text-align: center;
-      line-height: 15px;
-      font-size: 11px;
-      font-weight: bold;
-    }
-
+    /* Footer */
     .footer {
-      margin-top: 50px;
-      border-top: 1px solid #ddd;
+      margin-top: 40px;
       padding-top: 20px;
-      color: #666;
-      font-size: 0.9em;
+      border-top: 1px solid #ecf0f1;
+      color: #7f8c8d;
+      font-size: 14px;
       text-align: center;
     }
 
-    .team-summary {
-      background-color: #f8f9fa;
-      border-radius: 8px;
-      padding: 15px;
-      margin-bottom: 30px;
+    /* Mobile Responsiveness */
+    @media screen and (max-width: 768px) {
+      body {
+        padding: 10px;
+      }
+
+      .header {
+        padding: 20px;
+      }
+
+      h1 {
+        font-size: 24px;
+      }
+
+      .content {
+        padding: 20px;
+      }
+
+      .stats-container {
+        grid-template-columns: 1fr;
+      }
+
+      .sprint-metrics {
+        flex-direction: column;
+      }
+
+      .metric-highlight {
+        min-width: auto;
+      }
+
+      .stats-table th,
+      .stats-table td,
+      .issue-table th,
+      .issue-table td {
+        padding: 8px 4px;
+        font-size: 14px;
+      }
+
+      h2 {
+        font-size: 20px;
+      }
+
+      h3 {
+        font-size: 16px;
+      }
     }
 
-    .metric-highlight {
-      background-color: #fff;
-      border: 1px solid #dee2e6;
-      border-radius: 4px;
-      padding: 10px;
-      margin: 5px 0;
-      display: inline-block;
-      min-width: 120px;
-      text-align: center;
+    /* iPhone 15 Pro Max specific optimizations */
+    @media screen and (max-width: 430px) and (max-height: 932px) {
+      .issue-table {
+        font-size: 13px;
+      }
+
+      .issue-table th,
+      .issue-table td {
+        padding: 6px 3px;
+      }
+
+      .stat-card {
+        padding: 15px;
+      }
+
+      .metric-value {
+        font-size: 20px;
+      }
+    }
+
+    /* Dark mode support */
+    @media (prefers-color-scheme: dark) {
+      body {
+        background-color: #1a1a1a;
+        color: #e8e8e8;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+
+      .container {
+        background-color: #2d2d2d;
+        border: 1px solid #404040;
+      }
+
+      .header {
+        background: linear-gradient(135deg, #4a5568 0%, #2d3748 100%);
+      }
+
+      .stat-card,
+      .issue-table,
+      .sprint-info,
+      .summary-box {
+        background-color: #3d3d3d;
+        border-color: #4a5568;
+        color: #e8e8e8;
+      }
+
+      .stats-table th,
+      .issue-table th {
+        background-color: #4a5568;
+        color: #f7fafc;
+      }
+
+      .stats-table td,
+      .issue-table td {
+        color: #e8e8e8;
+        border-color: #4a5568;
+      }
+
+      .metric-highlight {
+        background-color: #4a5568;
+        color: #f7fafc;
+      }
+
+      .metric-value {
+        color: #f7fafc;
+      }
+
+      .metric-label {
+        color: #cbd5e0;
+      }
+
+      h1, h2, h3 {
+        color: #f7fafc;
+      }
+
+      /* Mobile dark mode specific improvements */
+      @media screen and (max-width: 768px) {
+        body {
+          font-size: 16px;
+          line-height: 1.5;
+        }
+
+        .stats-table th,
+        .stats-table td,
+        .issue-table th,
+        .issue-table td {
+          font-size: 15px;
+          font-weight: 500;
+        }
+
+        .metric-value {
+          font-size: 22px;
+          font-weight: 600;
+        }
+      }
+
+      /* iPhone specific dark mode optimizations */
+      @media screen and (max-width: 430px) {
+        .issue-table th,
+        .issue-table td {
+          font-size: 14px;
+          font-weight: 500;
+          line-height: 1.4;
+        }
+
+        .stats-table th,
+        .stats-table td {
+          font-size: 14px;
+          font-weight: 500;
+        }
+      }
     }
   </style>
 </head>
 <body>
-  <h1>Relatório de Sprint - ${
-		currentSprint ? currentSprint.title : 'Análise Geral'
-	}</h1>
-  <p class="date">Relatório gerado em: ${formattedDate}</p>
-
-  ${
-		currentSprint
-			? `
-  <div class="sprint-info">
-    <h3>📊 Sprint Atual: ${currentSprint.title}</h3>
-    <p><strong>Período:</strong> ${new Date(
-			currentSprint.startDate,
-		).toLocaleDateString('pt-BR')} a ${new Date(
-					currentSprint.endDate,
-			  ).toLocaleDateString('pt-BR')} (${currentSprint.duration} dias)</p>
-
-    <div style="display: flex; gap: 10px; flex-wrap: wrap; margin: 15px 0;">
-      <div class="metric-highlight">
-        <div style="font-size: 24px; font-weight: bold; color: #2C74B3;">${
-					currentSprint.sprintCompletionRate
-				}%</div>
-        <div style="font-size: 12px; color: #666;">Taxa de Conclusão</div>
-      </div>
-      <div class="metric-highlight">
-        <div style="font-size: 24px; font-weight: bold; color: #28a745;">${
-					currentSprint.totalEstimateDelivered
-				}</div>
-        <div style="font-size: 12px; color: #666;">Pontos Entregues</div>
-      </div>
-      <div class="metric-highlight">
-        <div style="font-size: 24px; font-weight: bold; color: #dc3545;">${
-					currentSprint.totalEstimatePending
-				}</div>
-        <div style="font-size: 12px; color: #666;">Pontos Pendentes</div>
-      </div>
-      <div class="metric-highlight">
-        <div style="font-size: 24px; font-weight: bold; color: #ffc107;">${currentSprint.bugFixRate.toFixed(
-					1,
-				)}%</div>
-        <div style="font-size: 12px; color: #666;">Taxa Resolução Bugs</div>
-      </div>
+  <div class="container">
+    <div class="header">
+      <h1>📊 Relatório de Sprint</h1>
+      <div class="date">${formattedDate}</div>
     </div>
 
-    <div class="progress-bar-container">
-      <div class="progress-bar" style="width: ${
-				currentSprint.sprintCompletionRate
-			}%">
-        ${currentSprint.sprintCompletionRate}% Completo
-      </div>
-    </div>
-  </div>
-  `
-			: ''
-	}
+    <div class="content">
+      ${
+				currentSprint
+					? `
+        <div class="sprint-info">
+          <h3>Sprint ${currentSprint.title}</h3>
+          <p><strong>Período:</strong> ${new Date(
+						currentSprint.startDate,
+					).toLocaleDateString('pt-BR')} a ${new Date(
+							currentSprint.endDate,
+					  ).toLocaleDateString('pt-BR')} (${currentSprint.duration} dias)</p>
 
-  <div class="summary-box">
-    <h3>📈 Resumo Executivo</h3>
-    ${
-			currentSprint
-				? `
-    <p><strong>Sprint:</strong> ${currentSprint.title} (${
-						currentSprint.currentSprint ? 'Em andamento' : 'Finalizada'
-				  })</p>
-    <p><strong>Equipe:</strong> ${currentSprint.totalMembers} membros ativos</p>
-    <p><strong>Workload:</strong> ${
-			currentSprint.totalIssues
-		} issues totalizando ${currentSprint.totalSprintEstimate} pontos</p>
-    <p><strong>Performance:</strong> Taxa de throughput de ${currentSprint.issueThroughputRate.toFixed(
-			2,
-		)} issues/dia e ${currentSprint.membersThroughputRate.toFixed(
-						2,
-				  )} pontos/membro</p>
-    <p><strong>Qualidade:</strong> ${
-			currentSprint.totalBugs
-		} bugs no total, com ${currentSprint.bugFixRate.toFixed(
+          <div class="sprint-metrics">
+            <div class="metric-highlight">
+              <div class="metric-value">${currentSprint.sprintCompletionRate.toFixed(
+								2,
+							)}%</div>
+              <div class="metric-label">Taxa de Conclusão</div>
+            </div>
+            <div class="metric-highlight">
+              <div class="metric-value">${
+								currentSprint.totalEstimateDelivered
+							}</div>
+              <div class="metric-label">Pontos Entregues</div>
+            </div>
+            <div class="metric-highlight">
+              <div class="metric-value">${
+								currentSprint.totalEstimatePending
+							}</div>
+              <div class="metric-label">Pontos Pendentes</div>
+            </div>
+            <div class="metric-highlight">
+              <div class="metric-value">${currentSprint.bugFixRate.toFixed(
+								1,
+							)}%</div>
+              <div class="metric-label">Taxa Resolução Bugs</div>
+            </div>
+          </div>
+
+          <div class="progress-bar-container">
+            <div class="progress-bar" style="width: ${currentSprint.sprintCompletionRate.toFixed(
+							2,
+						)}%">
+              ${currentSprint.sprintCompletionRate.toFixed(2)}% Completo
+            </div>
+          </div>
+        </div>
+      `
+					: ''
+			}
+
+      <div class="summary-box">
+        <h3>📈 Resumo Executivo</h3>
+        ${
+					currentSprint
+						? `
+          <p><strong>Sprint:</strong> ${currentSprint.title} (${
+								currentSprint.currentSprint ? 'Em andamento' : 'Finalizada'
+						  })</p>
+          <p><strong>Equipe:</strong> ${
+						currentSprint.totalMembers
+					} membros ativos</p>
+          <p><strong>Workload:</strong> ${
+						currentSprint.totalIssues
+					} issues totalizando ${currentSprint.totalSprintEstimate} pontos</p>
+          <p><strong>Performance:</strong> Taxa de throughput de ${currentSprint.issueThroughputRate.toFixed(
 						1,
-				  )}% de taxa de resolução</p>
-    `
-				: '<p>Dados de sprint não disponíveis</p>'
-		}
-  </div>
+					)} issues/dia e ${currentSprint.membersThroughputRate.toFixed(
+								1,
+						  )} pontos/membro</p>
+          <p><strong>Qualidade:</strong> ${
+						currentSprint.totalBugs
+					} bugs no total, com ${currentSprint.bugFixRate.toFixed(
+								1,
+						  )}% de taxa de resolução</p>
+        `
+						: '<p>Dados de sprint não disponíveis</p>'
+				}
+      </div>
 
-  <div class="stats-container">
-    ${quickStats.join('')}
-  </div>
+      <div class="stats-container">
+        ${quickStats.join('')}
+      </div>
 
-  ${memberDetails}
+      ${memberDetails}
 
-  ${sprintComparison}
+      ${carryOverAnalysis}
 
-  <div class="footer">
-    <p>Este relatório é gerado automaticamente pela automação n8n do time Interlis.</p>
-    <p>Dados extraídos do GitHub Projects em ${formattedDate}</p>
+      ${sprintComparison}
+
+      <div class="footer">
+        <p>Dados extraídos do GitHub Projects em ${formattedDate}</p>
+      </div>
+    </div>
   </div>
 </body>
 </html>
@@ -623,10 +959,10 @@ const emailHtml = `
 // Retornar o HTML formatado e o assunto do email
 return {
 	json: {
-		emailHtml: emailHtml,
 		subject: `📊 Relatório Sprint ${
 			currentSprint ? currentSprint.title : 'Análise'
 		} - ${today.toLocaleDateString('pt-BR')}`,
+		emailHtml: emailHtml,
 		summary: {
 			sprintTitle: currentSprint ? currentSprint.title : 'N/A',
 			completionRate: currentSprint ? currentSprint.sprintCompletionRate : 0,
@@ -634,8 +970,8 @@ return {
 			totalMembers: currentSprint ? currentSprint.totalMembers : 0,
 			bugFixRate: currentSprint ? currentSprint.bugFixRate.toFixed(1) : '0.0',
 			throughputRate: currentSprint
-				? currentSprint.issueThroughputRate.toFixed(2)
-				: '0.00',
+				? currentSprint.issueThroughputRate.toFixed(1)
+				: '0.0',
 		},
 	},
 };
