@@ -229,6 +229,28 @@ const summarySprints = sprintsStructured.map(function (sprint) {
 		return acc;
 	}, {});
 
+	const issueCountByPriority = sprint.issues.reduce(function (acc, issue) {
+		const priority = issue.priority;
+		acc[priority] = (acc[priority] || 0) + 1;
+		return acc;
+	}, {});
+
+	const estimateTotalByPriority = sprint.issues.reduce(function (acc, issue) {
+		const priority = issue.priority;
+		acc[priority] = (acc[priority] || issue.estimate) + 1;
+		return acc;
+	}, {});
+
+	const bugCountByPriority = sprint.issues
+		.filter(function (issue) {
+			return issue.issueType === 'Bug';
+		})
+		.reduce(function (acc, issue) {
+			const priority = issue.priority;
+			acc[priority] = (acc[priority] || 0) + 1;
+			return acc;
+		}, {});
+
 	const estimateTotalByStatus = sprint.issues.reduce(function (acc, issue) {
 		const status = issue.status;
 		acc[status] = (acc[status] || 0) + issue.estimate;
@@ -328,6 +350,9 @@ const summarySprints = sprintsStructured.map(function (sprint) {
 		issueCountByStatus,
 		estimateTotalByStatus,
 		carryOverEstimatePerSprint,
+		issueCountByPriority,
+		estimateTotalByPriority,
+		bugCountByPriority,
 	};
 });
 
