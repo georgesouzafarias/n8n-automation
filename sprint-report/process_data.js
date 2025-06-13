@@ -143,6 +143,8 @@ try {
 	};
 }
 
+//console.log(sprintsStructured[0].issues[0]);
+
 const summarySprints = sprintsStructured.map(function (sprint) {
 	const totalIssues = sprint.issues.length;
 
@@ -178,7 +180,7 @@ const summarySprints = sprintsStructured.map(function (sprint) {
 
 	const sprintCompletionRate =
 		totalSprintEstimate > 0
-			? (totalEstimateDelivered / totalSprintEstimate) * 100
+			? ((totalEstimateDelivered / totalSprintEstimate) * 100).toFixed(2)
 			: 0;
 
 	const totalBugsDelivered = sprint.issues
@@ -203,11 +205,16 @@ const summarySprints = sprintsStructured.map(function (sprint) {
 
 	const totalBugs = totalBugsDelivered + totalBugsPending;
 
-	const issueThroughputRate = totalEstimateDelivered / sprint.duration;
+	const issueThroughputRate = (
+		totalEstimateDelivered / sprint.duration
+	).toFixed(2);
 
-	const membersThroughputRate = totalEstimateDelivered / totalMembers;
+	const membersThroughputRate = (totalEstimateDelivered / totalMembers).toFixed(
+		2,
+	);
 
-	const bugFixRate = totalBugs > 0 ? (totalBugsDelivered / totalBugs) * 100 : 0;
+	const bugFixRate =
+		totalBugs > 0 ? ((totalBugsDelivered / totalBugs) * 100).toFixed(2) : 0;
 
 	const listPriority = [
 		...new Set(
@@ -250,6 +257,28 @@ const summarySprints = sprintsStructured.map(function (sprint) {
 			acc[priority] = (acc[priority] || 0) + 1;
 			return acc;
 		}, {});
+
+	const criticalBugCountP0P1 = sprint.issues
+		.filter(function (issue) {
+			return (
+				(issue.issueType === 'Bug' && issue.priority === 'P0') ||
+				issue.priority === 'P1'
+			);
+		})
+		.reduce(function (acc) {
+			return acc + 1;
+		}, 0);
+
+	const criticalBugCountP0P1Delivered = sprint.issues
+		.filter(function (issue) {
+			return (
+				(issue.issueType === 'Bug' && issue.priority === 'P0') ||
+				(issue.priority === 'P1' && issue.state === 'CLOSED')
+			);
+		})
+		.reduce(function (acc) {
+			return acc + 1;
+		}, 0);
 
 	const estimateTotalByStatus = sprint.issues.reduce(function (acc, issue) {
 		const status = issue.status;
@@ -296,6 +325,38 @@ const summarySprints = sprintsStructured.map(function (sprint) {
 			return acc;
 		}, {});
 
+	const bugDeliveredByAssignee = sprint.issues
+		.filter(function (issue) {
+			return issue.state === 'CLOSED' && issue.issueType == 'Bug';
+		})
+		.reduce((acc, issue) => {
+			const assignees = Array.isArray(issue.assignees)
+				? issue.assignees
+				: [issue.assignees];
+
+			assignees.forEach((assignee) => {
+				acc[assignee] = (acc[assignee] || 0) + 1;
+			});
+
+			return acc;
+		}, {});
+
+	const bugTotalByAssignee = sprint.issues
+		.filter(function (issue) {
+			return issue.issueType == 'Bug';
+		})
+		.reduce((acc, issue) => {
+			const assignees = Array.isArray(issue.assignees)
+				? issue.assignees
+				: [issue.assignees];
+
+			assignees.forEach((assignee) => {
+				acc[assignee] = (acc[assignee] || 0) + 1;
+			});
+
+			return acc;
+		}, {});
+
 	const estimatePendingByAssignee = sprint.issues
 		.filter(function (issue) {
 			return issue.state === 'OPEN' && sprint.currentSprint;
@@ -323,6 +384,42 @@ const summarySprints = sprintsStructured.map(function (sprint) {
 
 		return acc;
 	}, {});
+
+	const bugHotfixCount = sprint.issues.reduce((acc, issue) => {
+		issue.labels.forEach((label) => {
+			const labelName = label.name;
+
+			if (labelName.toLowerCase().includes('hotfix')) {
+				acc[labelName] = (acc[labelName] || 0) + 1;
+			}
+		});
+
+		return acc;
+	}, {});
+
+	const estimateLoadDistributionByAssignee = {};
+
+	for (const [assignee, points] of Object.entries(estimateTotalByAssignee)) {
+		estimateLoadDistributionByAssignee[assignee] = Number(
+			((points / totalSprintEstimate) * 100).toFixed(2),
+		);
+	}
+
+	const bugLoadDistributionByAssignee = {};
+
+	for (const [assignee, bugs] of Object.entries(bugTotalByAssignee)) {
+		bugLoadDistributionByAssignee[assignee] = Number(
+			((bugs / totalBugs) * 100).toFixed(2),
+		);
+	}
+
+	const burnoutRiskScore = {};
+
+	for (const [assignee, points] of Object.entries(estimateTotalByAssignee)) {
+		burnoutRiskScore[assignee] = Number(
+			(points / (totalSprintEstimate / totalMembers)).toFixed(2),
+		);
+	}
 
 	const { issues, ...sprintWithoutIssues } = sprint;
 
@@ -353,6 +450,13 @@ const summarySprints = sprintsStructured.map(function (sprint) {
 		issueCountByPriority,
 		estimateTotalByPriority,
 		bugCountByPriority,
+		criticalBugCountP0P1,
+		bugHotfixCount,
+		bugTotalByAssignee,
+		bugDeliveredByAssignee,
+		estimateLoadDistributionByAssignee,
+		bugLoadDistributionByAssignee,
+		burnoutRiskScore,
 	};
 });
 
