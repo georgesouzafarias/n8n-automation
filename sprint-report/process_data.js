@@ -1,12 +1,47 @@
+/**
+ * SPRINT DATA PROCESSING SCRIPT
+ * =============================
+ *
+ * Processes GitHub Projects data to generate comprehensive sprint analytics
+ *
+ * MAIN FUNCTIONS:
+ * • 📊 Extracts and formats sprint configurations from GitHub Projects
+ * • 🎯 Processes issues with custom field mappings (Status, Priority, Estimate, Sprint)
+ * • 📈 Calculates comprehensive metrics: completion rates, throughput, bug analysis
+ * • 👥 Generates team performance analytics and workload distribution
+ * • 🏷️ Analyzes distribution by type, status, assignee, and priority
+ * • 📦 Tracks carry-over analysis from previous sprints
+ * • 🚨 Identifies critical bugs and burnout risk indicators
+ *
+ * INPUT: GitHub Projects API data via n8n or local data.json
+ * OUTPUT: { summarySprints } - Array of enriched sprint objects with analytics
+ *
+ * SUPPORTED PRIORITY FIELDS:
+ * • issueCountByPriority - issue count distribution by priority (P0-P8)
+ * • estimateTotalByPriority - estimate points distribution by priority
+ * • bugCountByPriority - bug count distribution by priority
+ *
+ * ENVIRONMENTS: Local development (Node.js) and n8n automation platform
+ */
+
 let projectData;
 let sprintsStructured = {};
 
-// Função auxiliar para verificar se um valor existe
+/**
+ * Helper function to check if a value exists (not null or undefined)
+ * @param {*} value - The value to check
+ * @returns {boolean} true if value is not null and not undefined
+ */
 function exists(value) {
 	return value !== null && value !== undefined;
 }
 
-// Função auxiliar para calcular a data de término de uma sprint
+/**
+ * Helper function to calculate the end date of a sprint
+ * @param {string} startDate - Sprint start date in ISO format (YYYY-MM-DD)
+ * @param {number|string} durationDays - Duration of the sprint in days
+ * @returns {string|null} End date in ISO format (YYYY-MM-DD) or null if invalid input
+ */
 function calculateEndDate(startDate, durationDays) {
 	if (!startDate || !durationDays) return null;
 
@@ -15,7 +50,12 @@ function calculateEndDate(startDate, durationDays) {
 	return date.toISOString().split('T')[0]; // Retorna apenas a parte da data (YYYY-MM-DD)
 }
 
-// Função para calcular a idade da issue em dias
+/**
+ * Function to calculate the duration of an issue in days
+ * @param {string} createdAt - Issue creation date in ISO format
+ * @param {string} updatedAt - Issue last update date in ISO format
+ * @returns {number} Duration in days (0 if invalid dates)
+ */
 function calculateIssueDuration(createdAt, updatedAt) {
 	if (!createdAt || !updatedAt) return 0;
 
@@ -27,6 +67,12 @@ function calculateIssueDuration(createdAt, updatedAt) {
 	return Math.floor(durationMs / (1000 * 60 * 60 * 24));
 }
 
+/**
+ * Extract and process sprint information from GitHub Projects data
+ * Identifies current and completed sprints with their metadata
+ * @param {Array} listSprints - Array of sprint configurations from GitHub Projects
+ * @returns {Array} Array of processed sprint objects with calculated properties
+ */
 function extractSprint(listSprints) {
 	let targets = [];
 	let sprints = [];
@@ -57,6 +103,12 @@ function extractSprint(listSprints) {
 	return sprints;
 }
 
+/**
+ * Extract and format issues from GitHub Projects data
+ * Processes raw issue data and extracts relevant fields including custom field values
+ * @param {Array} listIssues - Array of raw issue objects from GitHub Projects API
+ * @returns {Array} Array of formatted issue objects with standardized properties
+ */
 function extractIssues(listIssues) {
 	let issuesFormated = [];
 
@@ -101,6 +153,13 @@ function extractIssues(listIssues) {
 	return issuesFormated;
 }
 
+/**
+ * Aggregate sprints with their associated issues and calculate metrics
+ * Combines sprint metadata with filtered issues and computes various statistics
+ * @param {Array} listSprints - Array of processed sprint objects
+ * @param {Array} listIssues - Array of formatted issue objects
+ * @returns {Array} Array of sprint objects enriched with issue data and metrics
+ */
 function agregateSprintIssues(listSprints, listIssues) {
 	const sprintsAndIssues = listSprints.map(function (sprint) {
 		const issuesRelacionadas = listIssues.filter(function (issue) {
@@ -115,6 +174,10 @@ function agregateSprintIssues(listSprints, listIssues) {
 	return sprintsAndIssues;
 }
 
+/**
+ * Local environment detection and data loading
+ * Checks if running locally and loads test data from data.json file
+ */
 // Verifica se estamos em ambiente local
 if (typeof $input === 'undefined') {
 	console.log('Ambiente local detectado, carregando data.json');
@@ -127,6 +190,11 @@ if (typeof $input === 'undefined') {
 	console.log('Arquivo data.json carregado com sucesso');
 }
 
+/**
+ * Data extraction and processing pipeline
+ * Extracts project data from n8n input and processes sprints with their issues
+ * Handles errors gracefully with detailed error reporting
+ */
 try {
 	projectData = $input.item.json.data.organization.projectV2;
 	sprintsStructured = agregateSprintIssues(
@@ -145,13 +213,29 @@ try {
 
 //console.log(sprintsStructured[0].issues[0]);
 
+/**
+ * Sprint summary calculation and metrics generation
+ * Transforms raw sprint data into comprehensive analytics including:
+ * - Basic metrics (issues, estimates, members)
+ * - Delivery tracking (completed vs pending)
+ * - Bug analysis and resolution rates
+ * - Performance metrics (throughput, completion rates)
+ * - Distribution analysis (by type, status, assignee, priority)
+ * - Carry-over analysis from previous sprints
+ */
 const summarySprints = sprintsStructured.map(function (sprint) {
 	const totalIssues = sprint.issues.length;
 
+	/**
+	 * Calculate total sprint estimate points
+	 */
 	const totalSprintEstimate = sprint.issues.reduce(function (acc, issue) {
 		return acc + issue.estimate;
 	}, 0);
 
+	/**
+	 * Extract unique team members from assignees
+	 */
 	const listMember = [
 		...new Set(
 			sprint.issues.map(function (issue) {
@@ -162,6 +246,9 @@ const summarySprints = sprintsStructured.map(function (sprint) {
 
 	const totalMembers = listMember.length;
 
+	/**
+	 * Calculate delivered estimates (closed issues)
+	 */
 	const totalEstimateDelivered = sprint.issues
 		.filter(function (issue) {
 			return issue.state === 'CLOSED';
@@ -170,6 +257,9 @@ const summarySprints = sprintsStructured.map(function (sprint) {
 			return acc + issue.estimate;
 		}, 0);
 
+	/**
+	 * Calculate pending estimates (open issues)
+	 */
 	const totalEstimatePending = sprint.issues
 		.filter(function (issue) {
 			return issue.state === 'OPEN';
@@ -178,6 +268,9 @@ const summarySprints = sprintsStructured.map(function (sprint) {
 			return acc + issue.estimate;
 		}, 0);
 
+	/**
+	 * Calculate sprint completion rate percentage
+	 */
 	const sprintCompletionRate =
 		totalSprintEstimate > 0
 			? ((totalEstimateDelivered / totalSprintEstimate) * 100).toFixed(2)
@@ -460,6 +553,12 @@ const summarySprints = sprintsStructured.map(function (sprint) {
 	};
 });
 
+/**
+ * Cross-environment output handling
+ * Supports both local development (Node.js module) and n8n automation environments
+ * In local mode: writes analysis_result.json file and exports module
+ * In n8n mode: returns data object for workflow processing
+ */
 // Suporta ambos os ambientes (local e n8n)
 if (typeof module !== 'undefined' && module.exports) {
 	const fs = require('fs');
