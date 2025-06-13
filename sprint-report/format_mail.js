@@ -360,6 +360,87 @@ if (
 	carryOverAnalysis += '</table></div>';
 }
 
+// Adicionar análise por prioridade
+let priorityAnalysis = '';
+
+if (
+	currentSprint &&
+	currentSprint.issueCountByPriority &&
+	Object.keys(currentSprint.issueCountByPriority).length > 0
+) {
+	priorityAnalysis += '<h2>📊 Análise por Prioridade</h2>';
+
+	const priorityColors = {
+		P0: '#FF3B30', // Vermelho crítico
+		P1: '#FF9500', // Laranja alto
+		P2: '#FFCC00', // Amarelo médio-alto
+		P3: '#30D158', // Verde médio
+		P4: '#007AFF', // Azul baixo
+		P5: '#5856D6', // Roxo muito baixo
+		P6: '#AF52DE', // Magenta opcional
+		P8: '#8E8E93', // Cinza menor
+	};
+
+	const priorityLabels = {
+		P0: 'Crítica',
+		P1: 'Alta',
+		P2: 'Média-Alta',
+		P3: 'Média',
+		P4: 'Baixa',
+		P5: 'Muito Baixa',
+		P6: 'Opcional',
+		P8: 'Menor',
+	};
+
+	// Ordenar prioridades por número de issues (decrescente)
+	const priorityEntries = Object.entries(
+		currentSprint.issueCountByPriority,
+	).sort(([, a], [, b]) => b - a);
+
+	priorityAnalysis += `
+		<div class="priority-grid">
+	`;
+
+	priorityEntries.forEach(([priority, issueCount]) => {
+		const estimateTotal =
+			currentSprint.estimateTotalByPriority?.[priority] || 0;
+		const bugCount = currentSprint.bugCountByPriority?.[priority] || 0;
+		const color = priorityColors[priority] || '#8E8E93';
+		const label = priorityLabels[priority] || priority;
+
+		priorityAnalysis += `
+			<div class="priority-card" style="border-left: 4px solid ${color};">
+				<div class="priority-header">
+					<span class="priority-badge" style="background: ${color}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: bold;">${priority}</span>
+					<span class="priority-label" style="font-weight: bold; margin-left: 8px;">${label}</span>
+				</div>
+				<div class="priority-metrics" style="margin-top: 8px;">
+					<div class="priority-row" style="display: flex; justify-content: space-between; margin: 4px 0;">
+						<span>📋 Issues:</span>
+						<strong>${issueCount}</strong>
+					</div>
+					<div class="priority-row" style="display: flex; justify-content: space-between; margin: 4px 0;">
+						<span>⏱️ Pontos:</span>
+						<strong>${estimateTotal}</strong>
+					</div>
+					${
+						bugCount > 0
+							? `
+						<div class="priority-row" style="display: flex; justify-content: space-between; margin: 4px 0;">
+							<span>🐛 Bugs:</span>
+							<strong>${bugCount}</strong>
+						</div>
+					`
+							: ''
+					}
+				</div>
+			</div>
+		`;
+	});
+
+	priorityAnalysis += '</div>';
+}
+
 // Adicionar comparativo com sprints anteriores
 let sprintComparison = '';
 
@@ -1013,6 +1094,95 @@ const emailHtml = `
           margin-bottom: 16px;
         }
       }
+
+      /* Priority Analysis Styles */
+      .priority-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 16px;
+        margin: 20px 0;
+      }
+
+      .priority-card {
+        background: white;
+        border-radius: 8px;
+        padding: 16px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        transition: transform 0.2s ease;
+      }
+
+      .priority-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+      }
+
+      .priority-header {
+        display: flex;
+        align-items: center;
+        margin-bottom: 12px;
+        font-size: 14px;
+      }
+
+      .priority-badge {
+        display: inline-block;
+        min-width: 32px;
+        text-align: center;
+        border-radius: 12px;
+        font-weight: bold;
+        font-size: 12px;
+      }
+
+      .priority-label {
+        font-weight: bold;
+        margin-left: 8px;
+        color: #2c3e50;
+      }
+
+      .priority-metrics {
+        margin-top: 8px;
+      }
+
+      .priority-row {
+        display: flex;
+        justify-content: space-between;
+        margin: 4px 0;
+        font-size: 14px;
+        color: #34495e;
+      }
+
+      /* Dark mode for priority cards */
+      @media (prefers-color-scheme: dark) {
+        .priority-card {
+          background: #1c1c1e;
+          border: 1px solid #38383a;
+        }
+
+        .priority-label {
+          color: #ffffff;
+        }
+
+        .priority-row {
+          color: #e5e5e7;
+        }
+      }
+
+      /* Mobile responsive for priority grid */
+      @media screen and (max-width: 768px) {
+        .priority-grid {
+          grid-template-columns: 1fr;
+          gap: 12px;
+        }
+
+        .priority-card {
+          padding: 14px;
+        }
+
+        .priority-row {
+          font-size: 16px;
+          font-weight: 600;
+          padding: 2px 0;
+        }
+      }
     }
   </style>
 </head>
@@ -1110,6 +1280,8 @@ const emailHtml = `
       ${memberDetails}
 
       ${carryOverAnalysis}
+
+      ${priorityAnalysis}
 
       ${sprintComparison}
 
