@@ -1,1314 +1,1047 @@
-// Função auxiliar para verificar se um valor existe
+/**
+ * EXECUTIVE SPRINT REPORT GENERATOR
+ * =================================
+ *
+ * Generates executive-level sprint analytics for decision making
+ * Focus: Key metrics, risks, and actionable insights
+ * No emojis - Clean, professional format
+ */
+
+// Helper function to check if a value exists
 function exists(value) {
 	return value !== null && value !== undefined;
 }
 
-// Tenta obter os dados do processamento anterior de forma robusta
+// Get sprint data from n8n input with robust handling
 let sprintData;
 
-// Tenta várias estruturas possíveis
+// Try multiple possible structures from n8n
 if (exists($input)) {
 	if (exists($input.json)) {
 		if (Array.isArray($input.json) && $input.json.length > 0) {
-			sprintData = $input.json; // Array de sprints direto
+			sprintData = $input.json;
 		} else if (
 			exists($input.json.summarySprints) &&
 			Array.isArray($input.json.summarySprints)
 		) {
-			sprintData = $input.json.summarySprints; // Dados em summarySprints
+			sprintData = $input.json.summarySprints;
 		} else {
-			sprintData = $input.json; // Caso seja um objeto direto
+			sprintData = $input.json;
 		}
 	} else if (exists($input.item) && exists($input.item.json)) {
 		if (
 			exists($input.item.json.summarySprints) &&
 			Array.isArray($input.item.json.summarySprints)
 		) {
-			sprintData = $input.item.json.summarySprints; // Estrutura n8n com summarySprints
-		} else if (Array.isArray($input.item.json)) {
-			sprintData = $input.item.json; // Array direto em item.json
-		} else {
-			sprintData = $input.item.json; // Estrutura comum em n8n
-		}
-	} else if (exists($input.context) && exists($input.item)) {
-		// Estrutura específica do n8n mostrada no erro
-		if (exists($input.item.json) && exists($input.item.json.summarySprints)) {
 			sprintData = $input.item.json.summarySprints;
+		} else if (Array.isArray($input.item.json)) {
+			sprintData = $input.item.json;
+		} else {
+			sprintData = $input.item.json;
 		}
 	} else {
-		sprintData = $input; // Último recurso
+		sprintData = $input;
 	}
 }
 
-// Se ainda não encontramos dados úteis
+// Error handling for invalid data
 if (
 	!exists(sprintData) ||
 	!Array.isArray(sprintData) ||
 	sprintData.length === 0
 ) {
-	// Tentar identificar onde estão os dados para debug
-	let debugInfo = 'Estruturas encontradas: ';
-	if (exists($input.json)) debugInfo += 'json ';
-	if (exists($input.item)) debugInfo += 'item ';
-	if (exists($input.item) && exists($input.item.json))
-		debugInfo += 'item.json ';
-	if (
-		exists($input.item) &&
-		exists($input.item.json) &&
-		exists($input.item.json.summarySprints)
-	)
-		debugInfo += 'item.json.summarySprints ';
-	if (exists($input.context)) debugInfo += 'context ';
-
 	return {
 		json: {
 			error: true,
-			message: 'Não foi possível obter os dados das sprints',
-			debug: debugInfo,
-			sprintDataType: typeof sprintData,
-			sprintDataLength: Array.isArray(sprintData)
-				? sprintData.length
-				: 'not array',
+			message: 'Sprint data not found or invalid',
 			inputStructure: JSON.stringify($input).substring(0, 500) + '...',
 		},
 	};
 }
 
-// Encontrar a sprint atual
+// Identify current sprint and previous sprints for comparison
 const currentSprint =
 	sprintData.find((sprint) => sprint.currentSprint) || sprintData[0];
-const lastSprints = sprintData
+const previousSprints = sprintData
 	.filter((sprint) => !sprint.currentSprint)
-	.slice(0, 3);
+	.slice(0, 2);
 
-// Formatar a data atual
-const dateOptions = {
+// Format current date
+const today = new Date();
+const formattedDate = today.toLocaleDateString('pt-BR', {
 	weekday: 'long',
 	day: 'numeric',
 	month: 'long',
 	year: 'numeric',
-};
-const today = new Date();
-const formattedDate = today.toLocaleDateString('pt-BR', dateOptions);
+});
 
-// Criar estatísticas rápidas para a sprint atual
-const quickStats = [];
+/**
+ * Generate executive summary with key metrics and alerts
+ */
+function generateExecutiveSummary(sprint) {
+	if (!sprint) return '<p>No sprint data available</p>';
 
-// Sprint atual - informações básicas
-if (currentSprint) {
-	quickStats.push(`
-		<div class="stat-card">
-			<h3>📊 Sprint Atual: ${currentSprint.title}</h3>
-			<table class="stats-table">
-				<tr><th>Métrica</th><th>Valor</th></tr>
-				<tr><td>Total de Issues</td><td align="center"><b>${
-					currentSprint.totalIssues
-				}</b></td></tr>
-				<tr><td>Total de Membros</td><td align="center"><b>${
-					currentSprint.totalMembers
-				}</b></td></tr>
-				<tr><td>Estimativa Total</td><td align="center"><b>${
-					currentSprint.totalSprintEstimate
-				}</b> pontos</td></tr>
-				<tr><td>Taxa de Conclusão</td><td align="center"><b>${currentSprint.sprintCompletionRate.toFixed(
-					2,
-				)}%</b></td></tr>
-			</table>
-		</div>
-	`);
-
-	// Progresso de entrega
-	quickStats.push(`
-		<div class="stat-card">
-			<h3>🎯 Progresso de Entrega</h3>
-			<table class="stats-table">
-				<tr><th>Status</th><th>Pontos</th></tr>
-				<tr><td>Entregues</td><td align="center"><b>${
-					currentSprint.totalEstimateDelivered
-				}</b></td></tr>
-				<tr><td>Pendentes</td><td align="center"><b>${
-					currentSprint.totalEstimatePending
-				}</b></td></tr>
-				<tr><td>Taxa de Issues</td><td align="center"><b>${currentSprint.issueThroughputRate.toFixed(
-					1,
-				)}</b>/dia</td></tr>
-				<tr><td>Taxa por Membro</td><td align="center"><b>${currentSprint.membersThroughputRate.toFixed(
-					1,
-				)}</b> pts</td></tr>
-			</table>
-		</div>
-	`);
-
-	// Informações de bugs
-	quickStats.push(`
-		<div class="stat-card">
-			<h3>🐛 Status de Bugs</h3>
-			<table class="stats-table">
-				<tr><th>Métrica</th><th>Valor</th></tr>
-				<tr><td>Total de Bugs</td><td align="center"><b>${
-					currentSprint.totalBugs
-				}</b></td></tr>
-				<tr><td>Bugs Resolvidos</td><td align="center"><b>${
-					currentSprint.totalBugsDelivered
-				}</b></td></tr>
-				<tr><td>Bugs Pendentes</td><td align="center"><b>${
-					currentSprint.totalBugsPending
-				}</b></td></tr>
-				<tr><td>Taxa de Resolução</td><td align="center"><b>${currentSprint.bugFixRate.toFixed(
-					1,
-				)}%</b></td></tr>
-			</table>
-		</div>
-	`);
-
-	// Distribuição por tipo de issue
-	if (currentSprint.issueCountByType) {
-		const typeRows = Object.entries(currentSprint.issueCountByType)
-			.sort(([, a], [, b]) => b - a)
-			.map(([type, count]) => {
-				const percentage = ((count / currentSprint.totalIssues) * 100).toFixed(
-					1,
-				);
-				let emoji = '';
-				switch (type) {
-					case 'Bug':
-						emoji = '🐛';
-						break;
-					case 'Feature':
-						emoji = '✨';
-						break;
-					case 'Task':
-						emoji = '📋';
-						break;
-					case 'Spike':
-						emoji = '🔍';
-						break;
-					default:
-						emoji = '📝';
-				}
-				return `<tr><td>${emoji} ${type}</td><td align="center"><b>${count}</b></td><td align="center">${percentage}%</td></tr>`;
-			})
-			.join('');
-
-		quickStats.push(`
-			<div class="stat-card">
-				<h3>📈 Distribuição por Tipo</h3>
-				<table class="stats-table">
-					<tr><th>Tipo</th><th>Qtd</th><th>%</th></tr>
-					${typeRows}
-				</table>
-			</div>
-		`);
-	}
-
-	// Status atual das issues
-	if (currentSprint.issueCountByStatus) {
-		const statusRows = Object.entries(currentSprint.issueCountByStatus)
-			.sort(([, a], [, b]) => b - a)
-			.map(([status, count]) => {
-				const points = currentSprint.estimateTotalByStatus[status] || 0;
-				let emoji = '';
-				switch (status) {
-					case 'Ready':
-						emoji = '⏳';
-						break;
-					case 'In progress':
-						emoji = '🔄';
-						break;
-					case 'In review':
-						emoji = '👀';
-						break;
-					case 'Test':
-						emoji = '🧪';
-						break;
-					case 'Blocked':
-						emoji = '🚫';
-						break;
-					case 'Deployed to Production':
-						emoji = '🚀';
-						break;
-					case 'Deployed to Staging':
-						emoji = '🏗️';
-						break;
-					default:
-						emoji = '📝';
-				}
-				return `<tr><td>${emoji} ${status}</td><td align="center"><b>${count}</b></td><td align="center">${points}</td></tr>`;
-			})
-			.join('');
-
-		quickStats.push(`
-			<div class="stat-card">
-				<h3>🔄 Status das Issues</h3>
-				<table class="stats-table">
-					<tr><th>Status</th><th>Qtd</th><th>Pts</th></tr>
-					${statusRows}
-				</table>
-			</div>
-		`);
-	}
-}
-
-// Criar detalhes por responsável para a sprint atual
-let memberDetails = '';
-
-if (currentSprint && currentSprint.issueCountByAssignee) {
-	memberDetails += '<h2>👥 Detalhes por Responsável - Sprint Atual</h2>';
-
-	// Criar tabela detalhada por membro
-	memberDetails += `
-		<div class="status-section">
-			<table class="issue-table">
-				<tr>
-					<th>Responsável</th>
-					<th>Issues</th>
-					<th>Estimativa Total</th>
-					<th>Entregue</th>
-					<th>Pendente</th>
-					<th>% Conclusão</th>
-				</tr>
-	`;
-
-	Object.entries(currentSprint.issueCountByAssignee).forEach(
-		([assignee, issueCount]) => {
-			const totalEstimate =
-				currentSprint.estimateTotalByAssignee[assignee] || 0;
-			const deliveredEstimate =
-				currentSprint.estimateDeliveredByAssignee[assignee] || 0;
-			const pendingEstimate =
-				currentSprint.estimatePendingByAssignee[assignee] || 0;
-			const completionRate =
-				totalEstimate > 0
-					? ((deliveredEstimate / totalEstimate) * 100).toFixed(1)
-					: '0.0';
-
-			let rowClass = '';
-			if (completionRate == 100) rowClass = 'completion-100';
-			else if (completionRate >= 80) rowClass = 'completion-high';
-			else if (completionRate >= 50) rowClass = 'completion-medium';
-			else if (completionRate > 0) rowClass = 'completion-low';
-
-			memberDetails += `
-			<tr class="${rowClass}">
-				<td><strong>${assignee}</strong></td>
-				<td align="center">${issueCount}</td>
-				<td align="center">${totalEstimate}</td>
-				<td align="center">${deliveredEstimate}</td>
-				<td align="center">${pendingEstimate}</td>
-				<td align="center">
-					<div class="mini-progress-bar-container">
-						<div class="mini-progress-bar" style="width: ${completionRate}%">
-							${completionRate}%
-						</div>
-					</div>
-				</td>
-			</tr>
-		`;
-		},
-	);
-
-	memberDetails += '</table></div>';
-}
-
-// Adicionar análise de carry over
-let carryOverAnalysis = '';
-
-if (
-	currentSprint &&
-	currentSprint.carryOverEstimatePerSprint &&
-	Object.keys(currentSprint.carryOverEstimatePerSprint).length > 0
-) {
-	carryOverAnalysis += '<h2>📦 Análise de Carry Over</h2>';
-
-	const carryOverEntries = Object.entries(
-		currentSprint.carryOverEstimatePerSprint,
-	).sort(([, a], [, b]) => b - a);
-
-	const totalCarryOver = carryOverEntries.reduce(
-		(sum, [, points]) => sum + points,
+	const completionRate = parseFloat(sprint.sprintCompletionRate);
+	const bugFixRate = parseFloat(sprint.bugFixRate);
+	const throughputRate = parseFloat(sprint.issueThroughputRate);
+	const membersThroughputRate = parseFloat(sprint.membersThroughputRate);
+	const hotfixCount = Object.values(sprint.bugHotfixCount || {}).reduce(
+		(sum, count) => sum + count,
 		0,
 	);
-	const carryOverPercentage = (
-		(totalCarryOver / currentSprint.totalSprintEstimate) *
-		100
-	).toFixed(1);
 
-	carryOverAnalysis += `
-		<div class="summary-box">
-			<p><strong>Total de Carry Over:</strong> ${totalCarryOver} pontos (${carryOverPercentage}% da sprint)</p>
-		</div>
-		<div class="status-section">
-			<table class="issue-table">
-				<tr>
-					<th>Sprint de Origem</th>
-					<th>Pontos</th>
-					<th>% do Total</th>
-				</tr>
-	`;
+	// Risk indicators
+	const risks = [];
+	if (completionRate < 70) risks.push('Low completion rate');
+	if (bugFixRate < 80) risks.push('Poor bug resolution');
+	if (sprint.totalBugs > sprint.totalIssues * 0.3) risks.push('High bug ratio');
+	if (hotfixCount > 2) risks.push('High hotfix frequency');
 
-	carryOverEntries.forEach(([sprintName, points]) => {
-		const percentage = ((points / totalCarryOver) * 100).toFixed(1);
-		carryOverAnalysis += `
-			<tr>
-				<td>${sprintName}</td>
-				<td align="center"><b>${points}</b></td>
-				<td align="center">${percentage}%</td>
-			</tr>
-		`;
-	});
-
-	carryOverAnalysis += '</table></div>';
-}
-
-// Adicionar análise por prioridade
-let priorityAnalysis = '';
-
-if (
-	currentSprint &&
-	currentSprint.issueCountByPriority &&
-	Object.keys(currentSprint.issueCountByPriority).length > 0
-) {
-	priorityAnalysis += '<h2>📊 Análise por Prioridade</h2>';
-
-	const priorityColors = {
-		P0: '#FF3B30', // Vermelho crítico
-		P1: '#FF9500', // Laranja alto
-		P2: '#FFCC00', // Amarelo médio-alto
-		P3: '#30D158', // Verde médio
-		P4: '#007AFF', // Azul baixo
-		P5: '#5856D6', // Roxo muito baixo
-		P6: '#AF52DE', // Magenta opcional
-		P8: '#8E8E93', // Cinza menor
-	};
-
-	const priorityLabels = {
-		P0: 'Crítica',
-		P1: 'Alta',
-		P2: 'Média-Alta',
-		P3: 'Média',
-		P4: 'Baixa',
-		P5: 'Muito Baixa',
-		P6: 'Opcional',
-		P8: 'Menor',
-	};
-
-	// Ordenar prioridades por número de issues (decrescente)
-	const priorityEntries = Object.entries(
-		currentSprint.issueCountByPriority,
-	).sort(([, a], [, b]) => b - a);
-
-	priorityAnalysis += `
-		<div class="priority-grid">
-	`;
-
-	priorityEntries.forEach(([priority, issueCount]) => {
-		const estimateTotal =
-			currentSprint.estimateTotalByPriority?.[priority] || 0;
-		const bugCount = currentSprint.bugCountByPriority?.[priority] || 0;
-		const color = priorityColors[priority] || '#8E8E93';
-		const label = priorityLabels[priority] || priority;
-
-		priorityAnalysis += `
-			<div class="priority-card" style="border-left: 4px solid ${color};">
-				<div class="priority-header">
-					<span class="priority-badge" style="background: ${color}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: bold;">${priority}</span>
-					<span class="priority-label" style="font-weight: bold; margin-left: 8px;">${label}</span>
-				</div>
-				<div class="priority-metrics" style="margin-top: 8px;">
-					<div class="priority-row" style="display: flex; justify-content: space-between; margin: 4px 0;">
-						<span>📋 Issues:</span>
-						<strong>${issueCount}</strong>
-					</div>
-					<div class="priority-row" style="display: flex; justify-content: space-between; margin: 4px 0;">
-						<span>⏱️ Pontos:</span>
-						<strong>${estimateTotal}</strong>
-					</div>
-					${
-						bugCount > 0
-							? `
-						<div class="priority-row" style="display: flex; justify-content: space-between; margin: 4px 0;">
-							<span>🐛 Bugs:</span>
-							<strong>${bugCount}</strong>
-						</div>
-					`
-							: ''
-					}
-				</div>
-			</div>
-		`;
-	});
-
-	priorityAnalysis += '</div>';
-}
-
-// Adicionar comparativo com sprints anteriores
-let sprintComparison = '';
-
-if (lastSprints.length > 0) {
-	sprintComparison += '<h2>📊 Comparativo com Sprints Anteriores</h2>';
-
-	sprintComparison += `
-		<div class="status-section">
-			<table class="issue-table">
-				<tr>
-					<th>Sprint</th>
-					<th>Período</th>
-					<th>Issues</th>
-					<th>Estimativa</th>
-					<th>Throughput</th>
-					<th>Observações</th>
-				</tr>
-	`;
-
-	// Adicionar sprint atual primeiro
-	if (currentSprint) {
-		sprintComparison += `
-			<tr class="current-sprint-row">
-				<td><strong>${currentSprint.title} (Atual)</strong></td>
-				<td>${new Date(currentSprint.startDate).toLocaleDateString(
-					'pt-BR',
-				)} - ${new Date(currentSprint.endDate).toLocaleDateString('pt-BR')}</td>
-				<td align="center">${currentSprint.totalIssues}</td>
-				<td align="center">${currentSprint.totalSprintEstimate}</td>
-				<td align="center">${currentSprint.issueThroughputRate.toFixed(1)}</td>
-				<td align="center">✅ ${currentSprint.sprintCompletionRate.toFixed(
-					2,
-				)}% concluído</td>
-			</tr>
-		`;
+	// Burnout risk analysis using burnoutRiskScore
+	const highRiskMembers = [];
+	if (sprint.burnoutRiskScore) {
+		Object.entries(sprint.burnoutRiskScore).forEach(([member, score]) => {
+			if (score > 1.5) {
+				// High burnout risk threshold
+				highRiskMembers.push(`${member} (${score.toFixed(1)})`);
+			}
+		});
 	}
 
-	// Adicionar sprints anteriores
-	lastSprints.forEach((sprint) => {
-		sprintComparison += `
-			<tr>
-				<td>${sprint.title}</td>
-				<td>${new Date(sprint.startDate).toLocaleDateString('pt-BR')} - ${new Date(
-			sprint.endDate,
-		).toLocaleDateString('pt-BR')}</td>
-				<td align="center">${sprint.totalIssues}</td>
-				<td align="center">${sprint.totalSprintEstimate}</td>
-				<td align="center">${sprint.issueThroughputRate.toFixed(1)}</td>
-				<td align="center">🏁 Finalizada</td>
-			</tr>
-		`;
-	});
+	// Blocked issues analysis
+	const blockedIssues = sprint.issueCountByStatus?.Blocked || 0;
+	const blockedPoints = sprint.estimateTotalByStatus?.Blocked || 0;
+	if (blockedIssues > 0)
+		risks.push(`${blockedIssues} blocked issues (${blockedPoints} pts)`);
 
-	sprintComparison += '</table></div>';
+	return `
+        <div class="executive-summary">
+            <h2>Executive Summary</h2>
+            <div class="key-metrics">
+                <div class="metric ${
+									completionRate < 70
+										? 'alert'
+										: completionRate > 90
+										? 'success'
+										: 'warning'
+								}">
+                    <span class="label">Sprint Progress</span>
+                    <span class="value">${completionRate.toFixed(1)}%</span>
+                    <span class="detail">${sprint.totalEstimateDelivered}/${
+		sprint.totalSprintEstimate
+	} pts</span>
+                </div>
+                <div class="metric ${bugFixRate < 80 ? 'alert' : 'success'}">
+                    <span class="label">Bug Resolution</span>
+                    <span class="value">${bugFixRate.toFixed(1)}%</span>
+                    <span class="detail">${sprint.totalBugsDelivered}/${
+		sprint.totalBugs
+	} bugs</span>
+                </div>
+                <div class="metric">
+                    <span class="label">Team Throughput</span>
+                    <span class="value">${membersThroughputRate.toFixed(
+											1,
+										)}</span>
+                    <span class="detail">pts/member</span>
+                </div>
+                <div class="metric ${
+									hotfixCount > 2
+										? 'alert'
+										: hotfixCount > 0
+										? 'warning'
+										: 'success'
+								}">
+                    <span class="label">Hotfixes</span>
+                    <span class="value">${hotfixCount}</span>
+                    <span class="detail">emergency fixes</span>
+                </div>
+            </div>
+
+            ${
+							risks.length > 0
+								? `
+                <div class="risk-alerts">
+                    <h3>▲ Risk Alerts</h3>
+                    <ul>
+                        ${risks.map((risk) => `<li>${risk}</li>`).join('')}
+                    </ul>
+                </div>
+            `
+								: ''
+						}
+
+            ${
+							highRiskMembers.length > 0
+								? `
+                <div class="burnout-alert">
+                    <h3>▲ Burnout Risk Alert</h3>
+                    <p>High risk members: ${highRiskMembers.join(', ')}</p>
+                </div>
+            `
+								: ''
+						}
+        </div>
+    `;
 }
 
-// Montar o HTML final
-const emailHtml = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Relatório Sprint - ${
-		currentSprint ? currentSprint.title : 'Análise Geral'
-	}</title>
-  <style>
-    /* Reset e base */
+/**
+ * Generate priority distribution analysis for decision making
+ */
+function generatePriorityAnalysis(sprint) {
+	if (!sprint.issueCountByPriority) return '';
+
+	const priorities = ['P0', 'P1', 'P2', 'P3', 'P4'];
+	const relevantPriorities = priorities.filter(
+		(p) => sprint.issueCountByPriority[p] > 0,
+	);
+
+	if (relevantPriorities.length === 0) return '';
+
+	return `
+        <div class="priority-analysis">
+            <h3>Priority Distribution</h3>
+            <table class="priority-table">
+                <tr>
+                    <th>Priority</th>
+                    <th>Issues</th>
+                    <th>Story Points</th>
+                    <th>Bugs</th>
+                </tr>
+                ${relevantPriorities
+									.map((priority) => {
+										const issueCount =
+											sprint.issueCountByPriority[priority] || 0;
+										const points =
+											sprint.estimateTotalByPriority[priority] || 0;
+										const bugs = sprint.bugCountByPriority[priority] || 0;
+
+										return `
+                        <tr class="${
+													priority === 'P0' || priority === 'P1'
+														? 'critical'
+														: ''
+												}">
+                            <td><strong>${priority}</strong></td>
+                            <td>${issueCount}</td>
+                            <td>${points}</td>
+                            <td>${bugs > 0 ? bugs : '-'}</td>
+                        </tr>
+                    `;
+									})
+									.join('')}
+            </table>
+        </div>
+    `;
+}
+
+/**
+ * Generate team performance overview
+ */
+function generateTeamOverview(sprint) {
+	if (!sprint.estimateLoadDistributionByAssignee) return '';
+
+	// Get workload distribution
+	const workloadEntries = Object.entries(
+		sprint.estimateLoadDistributionByAssignee,
+	).sort(([, a], [, b]) => b - a);
+
+	const overloadedMembers = workloadEntries.filter(([, load]) => load > 25);
+	const avgLoad = 100 / sprint.totalMembers;
+
+	// Top performers by delivered points
+	const deliveredEntries = Object.entries(
+		sprint.estimateDeliveredByAssignee || {},
+	)
+		.sort(([, a], [, b]) => b - a)
+		.slice(0, 3);
+
+	// Bug analysis by assignee
+	const bugsByMember = Object.entries(sprint.bugTotalByAssignee || {}).sort(
+		([, a], [, b]) => b - a,
+	);
+
+	// Issue type distribution
+	const typeStats = Object.entries(sprint.issueCountByType || {})
+		.map(([type, count]) => `${type}: ${count}`)
+		.join(', ');
+
+	return `
+        <div class="team-overview">
+            <h3>Team Performance</h3>
+            <div class="team-stats">
+                <div class="stat">
+                    <span class="label">Team Size</span>
+                    <span class="value">${sprint.totalMembers}</span>
+                </div>
+                <div class="stat">
+                    <span class="label">Avg. Throughput</span>
+                    <span class="value">${parseFloat(
+											sprint.membersThroughputRate,
+										).toFixed(1)}</span>
+                    <span class="detail">pts/member</span>
+                </div>
+                <div class="stat ${
+									overloadedMembers.length > 0 ? 'alert' : 'success'
+								}">
+                    <span class="label">Overloaded</span>
+                    <span class="value">${overloadedMembers.length}</span>
+                </div>
+                <div class="stat">
+                    <span class="label">Issue Types</span>
+                    <span class="value">${
+											Object.keys(sprint.issueCountByType || {}).length
+										}</span>
+                    <span class="detail">${typeStats}</span>
+                </div>
+            </div>
+
+            ${
+							deliveredEntries.length > 0
+								? `
+                <div class="top-performers">
+                    <h4>🎯 Top Performers (Delivered Points)</h4>
+                    <ul>
+                        ${deliveredEntries
+													.map(
+														([member, points]) =>
+															`<li>${member}: ${points} points delivered</li>`,
+													)
+													.join('')}
+                    </ul>
+                </div>
+            `
+								: ''
+						}
+
+            ${
+							overloadedMembers.length > 0
+								? `
+                <div class="workload-alert">
+                    <h4>▲ Workload Distribution Issues</h4>
+                    <ul>
+                        ${overloadedMembers
+													.map(
+														([member, load]) =>
+															`<li>${member}: ${load.toFixed(
+																1,
+															)}% of sprint capacity</li>`,
+													)
+													.join('')}
+                    </ul>
+                </div>
+            `
+								: ''
+						}
+
+            ${
+							bugsByMember.length > 0
+								? `
+                <div class="bug-analysis">
+                    <h4>🐛 Bug Responsibility</h4>
+                    <ul>
+                        ${bugsByMember
+													.slice(0, 5)
+													.map(([member, bugs]) => {
+														const delivered =
+															sprint.bugDeliveredByAssignee?.[member] || 0;
+														const rate =
+															bugs > 0
+																? ((delivered / bugs) * 100).toFixed(1)
+																: '0';
+														return `<li>${member}: ${delivered}/${bugs} bugs fixed (${rate}%)</li>`;
+													})
+													.join('')}
+                    </ul>
+                </div>
+            `
+								: ''
+						}
+        </div>
+    `;
+}
+
+/**
+ * Generate sprint comparison with trends (avoiding unreliable completion rates)
+ */
+function generateSprintComparison(current, previous) {
+	if (!previous || previous.length === 0) return '';
+
+	// Get the last 3 sprints for comparison
+	const lastThreeSprints = previous.slice(0, 3);
+
+	return `
+        <div class="sprint-comparison">
+            <h3>Sprint Comparison - Last 3 Sprints</h3>
+            <div class="comparison-note">
+                <p><em>Note: Completion rates not compared due to sprint methodology differences</em></p>
+            </div>
+            <table class="comparison-table">
+                <tr>
+                    <th>Metric</th>
+                    <th>Current (${current.title})</th>
+                    ${lastThreeSprints
+											.map((sprint) => `<th>${sprint.title}</th>`)
+											.join('')}
+                </tr>
+                <tr>
+                    <td>Issue Throughput</td>
+                    <td>${current.issueThroughputRate} pts/day</td>
+                    ${lastThreeSprints
+											.map(
+												(sprint) =>
+													`<td>${sprint.issueThroughputRate} pts/day</td>`,
+											)
+											.join('')}
+                </tr>
+                <tr>
+                    <td>Team Throughput</td>
+                    <td>${current.membersThroughputRate} pts/member</td>
+                    ${lastThreeSprints
+											.map(
+												(sprint) =>
+													`<td>${sprint.membersThroughputRate} pts/member</td>`,
+											)
+											.join('')}
+                </tr>
+                <tr>
+                    <td>Total Bugs</td>
+                    <td>${current.totalBugs}</td>
+                    ${lastThreeSprints
+											.map((sprint) => `<td>${sprint.totalBugs}</td>`)
+											.join('')}
+                </tr>
+                <tr>
+                    <td>Hotfixes</td>
+                    <td>${Object.values(current.bugHotfixCount || {}).reduce(
+											(sum, count) => sum + count,
+											0,
+										)}</td>
+                    ${lastThreeSprints
+											.map((sprint) => {
+												const hotfixes = Object.values(
+													sprint.bugHotfixCount || {},
+												).reduce((sum, count) => sum + count, 0);
+												return `<td>${hotfixes}</td>`;
+											})
+											.join('')}
+                </tr>
+                <tr>
+                    <td>Team Size</td>
+                    <td>${current.totalMembers}</td>
+                    ${lastThreeSprints
+											.map((sprint) => `<td>${sprint.totalMembers}</td>`)
+											.join('')}
+                </tr>
+                <tr>
+                    <td>Bug Fix Rate</td>
+                    <td>${parseFloat(current.bugFixRate).toFixed(1)}%</td>
+                    ${lastThreeSprints
+											.map(
+												(sprint) =>
+													`<td>${parseFloat(sprint.bugFixRate).toFixed(
+														1,
+													)}%</td>`,
+											)
+											.join('')}
+                </tr>
+            </table>
+
+            <div class="trend-analysis">
+                <h4>📈 Trend Analysis vs ${
+									lastThreeSprints[0]?.title || 'Previous Sprint'
+								}</h4>
+                <div class="trends">
+                    ${(() => {
+											if (lastThreeSprints.length === 0) return '';
+											const prev = lastThreeSprints[0];
+
+											const throughputTrend =
+												parseFloat(current.issueThroughputRate) -
+												parseFloat(prev.issueThroughputRate);
+											const membersThroughputTrend =
+												parseFloat(current.membersThroughputRate) -
+												parseFloat(prev.membersThroughputRate);
+											const bugTrend = current.totalBugs - prev.totalBugs;
+											const bugFixTrend =
+												parseFloat(current.bugFixRate) -
+												parseFloat(prev.bugFixRate);
+
+											const currentHotfixes = Object.values(
+												current.bugHotfixCount || {},
+											).reduce((sum, count) => sum + count, 0);
+											const prevHotfixes = Object.values(
+												prev.bugHotfixCount || {},
+											).reduce((sum, count) => sum + count, 0);
+											const hotfixTrend = currentHotfixes - prevHotfixes;
+
+											return `
+                            <span class="trend-item ${
+															throughputTrend >= 0 ? 'positive' : 'negative'
+														}">
+                                Issue Throughput: ${
+																	throughputTrend >= 0 ? '▲' : '▼'
+																} ${Math.abs(throughputTrend).toFixed(1)}
+                            </span>
+                            <span class="trend-item ${
+															membersThroughputTrend >= 0
+																? 'positive'
+																: 'negative'
+														}">
+                                Team Throughput: ${
+																	membersThroughputTrend >= 0 ? '▲' : '▼'
+																} ${Math.abs(membersThroughputTrend).toFixed(1)}
+                            </span>
+                            <span class="trend-item ${
+															bugTrend <= 0 ? 'positive' : 'negative'
+														}">
+                                Total Bugs: ${
+																	bugTrend <= 0 ? '▼' : '▲'
+																} ${Math.abs(bugTrend)}
+                            </span>
+                            <span class="trend-item ${
+															bugFixTrend >= 0 ? 'positive' : 'negative'
+														}">
+                                Bug Fix Rate: ${
+																	bugFixTrend >= 0 ? '▲' : '▼'
+																} ${Math.abs(bugFixTrend).toFixed(1)}%
+                            </span>
+                            <span class="trend-item ${
+															hotfixTrend <= 0 ? 'positive' : 'negative'
+														}">
+                                Hotfixes: ${
+																	hotfixTrend <= 0 ? '▼' : '▲'
+																} ${Math.abs(hotfixTrend)}
+                            </span>
+                        `;
+										})()}
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// Generate the complete executive report components
+const executiveSummary = generateExecutiveSummary(currentSprint);
+const priorityAnalysis = generatePriorityAnalysis(currentSprint);
+const teamOverview = generateTeamOverview(currentSprint);
+const sprintComparison = generateSprintComparison(
+	currentSprint,
+	previousSprints,
+);
+
+// Professional CSS with dark mode support
+const cssStyles = `
+<style>
     * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
     }
 
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
-      line-height: 1.6;
-      color: #333;
-      background-color: #f8f9fa;
-      padding: 20px;
-      max-width: 1200px;
-      margin: 0 auto;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+        line-height: 1.6;
+        color: #333;
+        background-color: #f8f9fa;
     }
 
     .container {
-      background-color: white;
-      border-radius: 12px;
-      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-      overflow: hidden;
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+        background: white;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        border-radius: 8px;
     }
 
     .header {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      padding: 30px;
-      text-align: center;
+        text-align: center;
+        margin-bottom: 30px;
+        padding-bottom: 20px;
+        border-bottom: 2px solid #e9ecef;
     }
 
-    h1 {
-      font-size: 28px;
-      font-weight: 700;
-      margin-bottom: 10px;
+    .header h1 {
+        color: #2c3e50;
+        font-size: 2.2em;
+        margin-bottom: 10px;
     }
 
-    .date {
-      font-size: 16px;
-      opacity: 0.9;
+    .header .subtitle {
+        color: #6c757d;
+        font-size: 1.1em;
     }
 
-    .content {
-      padding: 30px;
-    }
-
-    h2 {
-      color: #2c3e50;
-      margin: 30px 0 20px 0;
-      padding-bottom: 10px;
-      border-bottom: 2px solid #ecf0f1;
-      font-size: 24px;
-    }
-
-    h3 {
-      color: #34495e;
-      margin-bottom: 15px;
-      font-size: 18px;
-    }
-
-    /* Sprint Info Card */
-    .sprint-info {
-      background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
-      border-radius: 12px;
-      padding: 25px;
-      margin-bottom: 30px;
-      border-left: 5px solid #2196f3;
-    }
-
-    .sprint-metrics {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 15px;
-      margin: 20px 0;
-    }
-
-    .metric-highlight {
-      background: white;
-      border-radius: 8px;
-      padding: 15px;
-      flex: 1;
-      min-width: 120px;
-      text-align: center;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-
-    .metric-value {
-      font-size: 24px;
-      font-weight: bold;
-      color: #2c3e50;
-    }
-
-    .metric-label {
-      font-size: 12px;
-      color: #7f8c8d;
-      margin-top: 5px;
-    }
-
-    .progress-bar-container {
-      background-color: #ecf0f1;
-      border-radius: 10px;
-      height: 20px;
-      margin: 15px 0;
-      overflow: hidden;
-    }
-
-    .progress-bar {
-      height: 100%;
-      background: linear-gradient(90deg, #4caf50 0%, #45a049 100%);
-      color: white;
-      text-align: center;
-      line-height: 20px;
-      font-size: 12px;
-      font-weight: bold;
-      transition: width 0.3s ease;
-    }
-
-    /* Stats Grid */
-    .stats-container {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-      gap: 20px;
-      margin-bottom: 30px;
-    }
-
-    .stat-card {
-      background: white;
-      border-radius: 12px;
-      padding: 20px;
-      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-      border-top: 4px solid #3498db;
-    }
-
-    .stats-table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-
-    .stats-table th,
-    .stats-table td {
-      padding: 10px 8px;
-      text-align: left;
-      border-bottom: 1px solid #ecf0f1;
-    }
-
-    .stats-table th {
-      background-color: #f8f9fa;
-      font-weight: 600;
-      color: #2c3e50;
-    }
-
-    .stats-table tbody tr:hover {
-      background-color: #f8f9fa;
-    }
-
-    /* Issue Tables */
-    .status-section {
-      margin-bottom: 30px;
-    }
-
-    .issue-table {
-      width: 100%;
-      border-collapse: collapse;
-      background: white;
-      border-radius: 8px;
-      overflow: hidden;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-
-    .issue-table th,
-    .issue-table td {
-      padding: 12px;
-      border-bottom: 1px solid #ecf0f1;
-    }
-
-    .issue-table th {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      font-weight: 600;
-      text-align: left;
-    }
-
-    .issue-table tbody tr:nth-child(even) {
-      background-color: #f8f9fa;
-    }
-
-    .issue-table tbody tr:hover {
-      background-color: #e3f2fd;
-    }
-
-    /* Status Classes */
-    .current-sprint-row {
-      background: linear-gradient(135deg, #e8f5e8 0%, #c8e6c9 100%) !important;
-      font-weight: bold;
-    }
-
-    .completion-100 {
-      background: linear-gradient(135deg, #e8f5e8 0%, #c8e6c9 100%) !important;
-    }
-
-    .completion-high {
-      background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%) !important;
-    }
-
-    .completion-medium {
-      background: linear-gradient(135deg, #fff3e0 0%, #ffcc02 100%) !important;
-    }
-
-    .completion-low {
-      background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%) !important;
-    }
-
-    /* Progress Bars */
-    .mini-progress-bar-container {
-      background-color: #ecf0f1;
-      border-radius: 10px;
-      height: 16px;
-      width: 100%;
-      overflow: hidden;
-    }
-
-    .mini-progress-bar {
-      height: 100%;
-      background: linear-gradient(90deg, #4caf50 0%, #45a049 100%);
-      color: white;
-      text-align: center;
-      line-height: 16px;
-      font-size: 11px;
-      font-weight: bold;
-      transition: width 0.3s ease;
-    }
-
-    /* Summary Box */
-    .summary-box {
-      background: linear-gradient(135deg, #f0f8ff 0%, #e6f3ff 100%);
-      border-left: 5px solid #2196f3;
-      border-radius: 8px;
-      padding: 20px;
-      margin-bottom: 30px;
-    }
-
-    /* Links */
-    a {
-      color: #3498db;
-      text-decoration: none;
-    }
-
-    a:hover {
-      text-decoration: underline;
-    }
-
-    /* Footer */
-    .footer {
-      margin-top: 40px;
-      padding-top: 20px;
-      border-top: 1px solid #ecf0f1;
-      color: #7f8c8d;
-      font-size: 14px;
-      text-align: center;
-    }
-
-    /* Mobile Responsiveness */
-    @media screen and (max-width: 768px) {
-      body {
-        padding: 10px;
-      }
-
-      .header {
+    .executive-summary {
+        margin-bottom: 30px;
         padding: 20px;
-      }
-
-      h1 {
-        font-size: 24px;
-      }
-
-      .content {
-        padding: 20px;
-      }
-
-      .stats-container {
-        grid-template-columns: 1fr;
-      }
-
-      .sprint-metrics {
-        flex-direction: column;
-      }
-
-      .metric-highlight {
-        min-width: auto;
-      }
-
-      .stats-table th,
-      .stats-table td,
-      .issue-table th,
-      .issue-table td {
-        padding: 8px 4px;
-        font-size: 14px;
-      }
-
-      h2 {
-        font-size: 20px;
-      }
-
-      h3 {
-        font-size: 16px;
-      }
+        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+        color: white;
+        border-radius: 8px;
     }
 
-    /* iPhone 15 Pro Max specific optimizations */
-    @media screen and (max-width: 430px) and (max-height: 932px) {
-      .issue-table {
-        font-size: 13px;
-      }
+    .executive-summary h2 {
+        margin-bottom: 20px;
+        font-size: 1.8em;
+    }
 
-      .issue-table th,
-      .issue-table td {
-        padding: 6px 3px;
-      }
+    .key-metrics {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 15px;
+        margin-bottom: 20px;
+    }
 
-      .stat-card {
+    .metric {
+        background: rgba(255,255,255,0.1);
         padding: 15px;
-      }
-
-      .metric-value {
-        font-size: 20px;
-      }
+        border-radius: 6px;
+        text-align: center;
+        backdrop-filter: blur(10px);
     }
 
-    /* Dark mode support - Otimizado para mobile */
-    @media (prefers-color-scheme: dark) {
-      body {
-        background-color: #000000;
-        color: #ffffff;
-        -webkit-font-smoothing: antialiased;
-        -moz-osx-font-smoothing: grayscale;
-      }
+    .metric.alert {
+        background: rgba(220, 53, 69, 0.8);
+    }
 
-      .container {
-        background-color: #1c1c1e;
-        border: 1px solid #38383a;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
-      }
+    .metric.warning {
+        background: rgba(255, 193, 7, 0.8);
+    }
 
-      .header {
-        background: linear-gradient(135deg, #1d1d1f 0%, #000000 100%);
-        border-bottom: 1px solid #38383a;
-      }
+    .metric.success {
+        background: rgba(40, 167, 69, 0.8);
+    }
 
-      .stat-card {
-        background-color: #1c1c1e;
-        border: 1px solid #38383a;
-        border-top: 4px solid #007aff;
-        color: #ffffff;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
-      }
+    .metric .label {
+        display: block;
+        font-size: 0.9em;
+        margin-bottom: 5px;
+        opacity: 0.9;
+    }
 
-      .issue-table {
-        background-color: #1c1c1e;
-        border: 1px solid #38383a;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
-      }
+    .metric .value {
+        display: block;
+        font-size: 1.8em;
+        font-weight: bold;
+    }
 
-      .sprint-info {
-        background: linear-gradient(135deg, #1c1c1e 0%, #2c2c2e 100%);
-        border: 1px solid #38383a;
-        border-left: 5px solid #007aff;
-        color: #ffffff;
-      }
+    .metric .detail {
+        display: block;
+        font-size: 0.8em;
+        margin-top: 5px;
+        opacity: 0.8;
+    }
 
-      .summary-box {
-        background: linear-gradient(135deg, #1c1c1e 0%, #2c2c2e 100%);
-        border: 1px solid #38383a;
-        border-left: 5px solid #34c759;
-        color: #ffffff;
-      }
+    .risk-alerts, .burnout-alert {
+        background: rgba(220, 53, 69, 0.1);
+        padding: 15px;
+        border-radius: 6px;
+        margin-top: 15px;
+        border-left: 4px solid #dc3545;
+    }
 
-      .stats-table th {
-        background-color: #2c2c2e;
-        color: #ffffff;
-        border-bottom: 2px solid #38383a;
+    .risk-alerts h3, .burnout-alert h3 {
+        color: #dc3545;
+        margin-bottom: 10px;
+    }
+
+    .risk-alerts ul {
+        list-style: none;
+        padding-left: 0;
+    }
+
+    .risk-alerts li {
+        padding: 5px 0;
+        color: #721c24;
+    }
+
+    .section {
+        margin-bottom: 30px;
+        padding: 20px;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .section h3 {
+        color: #2c3e50;
+        margin-bottom: 15px;
+        font-size: 1.4em;
+        border-bottom: 2px solid #e9ecef;
+        padding-bottom: 10px;
+    }
+
+    .priority-table, .comparison-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+    }
+
+    .priority-table th, .comparison-table th,
+    .priority-table td, .comparison-table td {
+        padding: 12px;
+        text-align: left;
+        border-bottom: 1px solid #dee2e6;
+    }
+
+    .priority-table th, .comparison-table th {
+        background-color: #f8f9fa;
         font-weight: 600;
-      }
+        color: #495057;
+    }
 
-      .stats-table td {
-        color: #ffffff;
-        border-bottom: 1px solid #38383a;
-      }
+    .priority-table tr.critical {
+        background-color: #fff5f5;
+    }
 
-      .stats-table tbody tr:hover {
-        background-color: #2c2c2e;
-      }
+    .team-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 15px;
+        margin-bottom: 20px;
+    }
 
-      .issue-table th {
-        background: linear-gradient(135deg, #2c2c2e 0%, #1c1c1e 100%);
-        color: #ffffff;
-        border-bottom: 2px solid #38383a;
-        font-weight: 600;
-      }
+    .stat {
+        background: #f8f9fa;
+        padding: 15px;
+        border-radius: 6px;
+        text-align: center;
+    }
 
-      .issue-table td {
-        color: #ffffff;
-        border-bottom: 1px solid #38383a;
-      }
+    .stat.alert {
+        background: #f8d7da;
+        color: #721c24;
+    }
 
-      .issue-table tbody tr:nth-child(even) {
-        background-color: #2c2c2e;
-      }
+    .stat.success {
+        background: #d1ecf1;
+        color: #0c5460;
+    }
 
-      .issue-table tbody tr:hover {
-        background-color: #38383a;
-      }
+    .stat .label {
+        display: block;
+        font-size: 0.9em;
+        margin-bottom: 5px;
+        opacity: 0.8;
+    }
 
-      .metric-highlight {
-        background-color: #2c2c2e;
-        color: #ffffff;
-        border: 1px solid #38383a;
-        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
-      }
+    .stat .value {
+        display: block;
+        font-size: 1.5em;
+        font-weight: bold;
+    }
 
-      .metric-value {
-        color: #ffffff;
-        font-weight: 700;
-      }
+    .top-performers, .bug-analysis {
+        background: #f8f9fa;
+        padding: 15px;
+        border-radius: 6px;
+        margin-top: 15px;
+        border-left: 4px solid #28a745;
+    }
 
-      .metric-label {
-        color: #8e8e93;
-        font-weight: 500;
-      }
+    .top-performers h4, .bug-analysis h4 {
+        color: #155724;
+        margin-bottom: 10px;
+        font-size: 1em;
+    }
 
-      h1, h2, h3 {
-        color: #ffffff;
-        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
-      }
+    .top-performers ul, .bug-analysis ul {
+        list-style: none;
+        padding-left: 0;
+    }
 
-      /* Status row colors for better contrast */
-      .current-sprint-row {
-        background: linear-gradient(135deg, #1e3a1e 0%, #2d5a2d 100%) !important;
-        color: #ffffff !important;
-        border: 1px solid #34c759 !important;
-      }
+    .top-performers li, .bug-analysis li {
+        padding: 3px 0;
+        color: #155724;
+        font-size: 0.9em;
+    }
 
-      .completion-100 {
-        background: linear-gradient(135deg, #1e3a1e 0%, #2d5a2d 100%) !important;
-        color: #ffffff !important;
-      }
+    .comparison-note {
+        background: #e7f3ff;
+        padding: 10px;
+        border-radius: 4px;
+        margin-bottom: 15px;
+        border-left: 4px solid #007bff;
+    }
 
-      .completion-high {
-        background: linear-gradient(135deg, #1e2a3a 0%, #2d4a5a 100%) !important;
-        color: #ffffff !important;
-      }
+    .comparison-note em {
+        color: #004085;
+        font-size: 0.9em;
+    }
 
-      .completion-medium {
-        background: linear-gradient(135deg, #3a2a1e 0%, #5a4a2d 100%) !important;
-        color: #ffffff !important;
-      }
+    .neutral {
+        color: #6c757d;
+        font-weight: bold;
+    }
 
-      .completion-low {
-        background: linear-gradient(135deg, #3a1e1e 0%, #5a2d2d 100%) !important;
-        color: #ffffff !important;
-      }
+    .trend-analysis {
+        margin-top: 20px;
+        padding: 15px;
+        background: #f8f9fa;
+        border-radius: 6px;
+        border-left: 4px solid #007bff;
+    }
 
-      /* Progress bars */
-      .progress-bar-container {
-        background-color: #2c2c2e;
-        border: 1px solid #38383a;
-      }
+    .trend-analysis h4 {
+        color: #495057;
+        margin-bottom: 10px;
+        font-size: 1em;
+    }
 
-      .progress-bar {
-        background: linear-gradient(90deg, #34c759 0%, #30d158 100%);
-        color: #000000;
-        font-weight: 700;
-      }
+    .trends {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
 
-      .mini-progress-bar-container {
-        background-color: #2c2c2e;
-        border: 1px solid #38383a;
-      }
+    .trend-item {
+        background: white;
+        padding: 8px 12px;
+        border-radius: 4px;
+        font-size: 0.9em;
+        border: 1px solid #dee2e6;
+        white-space: nowrap;
+    }
 
-      .mini-progress-bar {
-        background: linear-gradient(90deg, #34c759 0%, #30d158 100%);
-        color: #000000;
-        font-weight: 700;
-      }
+    .trend-item.positive {
+        color: #155724;
+        background: #d4edda;
+        border-color: #c3e6cb;
+    }
 
-      /* Links */
-      a {
-        color: #007aff;
-      }
+    .trend-item.negative {
+        color: #721c24;
+        background: #f8d7da;
+        border-color: #f5c6cb;
+    }
 
-      a:hover {
-        color: #0051d0;
-      }
+    @media (max-width: 768px) {
+        .container {
+            padding: 15px;
+        }
 
-      .footer {
-        color: #8e8e93;
-        border-top: 1px solid #38383a;
-      }
+        .key-metrics {
+            grid-template-columns: repeat(2, 1fr);
+        }
 
-      /* Mobile dark mode specific improvements */
-      @media screen and (max-width: 768px) {
+        .team-stats {
+            grid-template-columns: 1fr;
+        }
+
+        .header h1 {
+            font-size: 1.8em;
+        }
+    }    @media (prefers-color-scheme: dark) {
         body {
-          font-size: 17px;
-          line-height: 1.6;
-          background-color: #000000;
+            background-color: #0f172a;
+            color: #f1f5f9;
         }
 
         .container {
-          border-radius: 0;
-          margin: 0;
+            background: #1e293b;
+            color: #f1f5f9;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
         }
 
-        .stats-table th,
-        .stats-table td {
-          font-size: 16px;
-          font-weight: 600;
-          padding: 12px 8px;
+        .header h1 {
+            color: #f1f5f9;
         }
 
-        .issue-table th,
-        .issue-table td {
-          font-size: 16px;
-          font-weight: 600;
-          padding: 12px 8px;
+        .header .subtitle {
+            color: #94a3b8;
         }
 
-        .metric-value {
-          font-size: 24px;
-          font-weight: 700;
+        .header {
+            border-bottom: 2px solid #334155;
         }
 
-        .metric-label {
-          font-size: 14px;
-          font-weight: 600;
+        .section {
+            background: #334155;
+            color: #f1f5f9;
         }
 
-        h1 {
-          font-size: 26px;
+        .section h3 {
+            color: #f1f5f9;
+            border-bottom: 2px solid #475569;
         }
 
-        h2 {
-          font-size: 22px;
+        .priority-table th, .comparison-table th {
+            background-color: #475569;
+            color: #f1f5f9;
         }
 
-        h3 {
-          font-size: 18px;
-        }
-      }
-
-      /* iPhone specific dark mode optimizations */
-      @media screen and (max-width: 430px) {
-        body {
-          font-size: 18px;
-          line-height: 1.7;
+        .priority-table td, .comparison-table td {
+            border-bottom: 1px solid #475569;
         }
 
-        .issue-table th,
-        .issue-table td {
-          font-size: 17px;
-          font-weight: 600;
-          line-height: 1.5;
-          padding: 14px 8px;
+        .priority-table tr.critical {
+            background-color: #450a0a;
         }
 
-        .stats-table th,
-        .stats-table td {
-          font-size: 17px;
-          font-weight: 600;
-          padding: 14px 8px;
+        .stat {
+            background: #475569;
+            color: #f1f5f9;
         }
 
-        .metric-value {
-          font-size: 26px;
-          font-weight: 700;
+        .stat.alert {
+            background: #991b1b;
+            color: #fecaca;
         }
 
-        .stat-card {
-          padding: 20px;
-          margin-bottom: 16px;
+        .stat.success {
+            background: #166534;
+            color: #bbf7d0;
         }
 
-        .sprint-info,
-        .summary-box {
-          padding: 20px;
-          margin-bottom: 16px;
-        }
-      }
-
-      /* Priority Analysis Styles */
-      .priority-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-        gap: 16px;
-        margin: 20px 0;
-      }
-
-      .priority-card {
-        background: white;
-        border-radius: 8px;
-        padding: 16px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        transition: transform 0.2s ease;
-      }
-
-      .priority-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
-      }
-
-      .priority-header {
-        display: flex;
-        align-items: center;
-        margin-bottom: 12px;
-        font-size: 14px;
-      }
-
-      .priority-badge {
-        display: inline-block;
-        min-width: 32px;
-        text-align: center;
-        border-radius: 12px;
-        font-weight: bold;
-        font-size: 12px;
-      }
-
-      .priority-label {
-        font-weight: bold;
-        margin-left: 8px;
-        color: #2c3e50;
-      }
-
-      .priority-metrics {
-        margin-top: 8px;
-      }
-
-      .priority-row {
-        display: flex;
-        justify-content: space-between;
-        margin: 4px 0;
-        font-size: 14px;
-        color: #34495e;
-      }
-
-      /* Dark mode for priority cards */
-      @media (prefers-color-scheme: dark) {
-        .priority-card {
-          background: #1c1c1e;
-          border: 1px solid #38383a;
+        .workload-alert {
+            background: #451a03;
+            border: 1px solid #92400e;
+            color: #fbbf24;
         }
 
-        .priority-label {
-          color: #ffffff;
+        .workload-alert h4 {
+            color: #fbbf24;
         }
 
-        .priority-row {
-          color: #e5e5e7;
-        }
-      }
-
-      /* Mobile responsive for priority grid */
-      @media screen and (max-width: 768px) {
-        .priority-grid {
-          grid-template-columns: 1fr;
-          gap: 12px;
+        .workload-alert li {
+            color: #fde68a;
         }
 
-        .priority-card {
-          padding: 14px;
+        .footer {
+            border-top: 1px solid #334155;
+            color: #94a3b8;
         }
 
-        .priority-row {
-          font-size: 16px;
-          font-weight: 600;
-          padding: 2px 0;
+        .risk-alerts, .burnout-alert {
+            background: rgba(153, 27, 27, 0.3);
+            border-left: 4px solid #ef4444;
         }
-      }
+
+        .risk-alerts h3, .burnout-alert h3 {
+            color: #fca5a5;
+        }
+
+        .risk-alerts li {
+            color: #fecaca;
+        }
+
+        .burnout-alert p {
+            color: #fecaca;
+        }
+
+        .top-performers, .bug-analysis {
+            background: #166534;
+            border-left: 4px solid #22c55e;
+        }
+
+        .top-performers h4, .bug-analysis h4 {
+            color: #bbf7d0;
+        }
+
+        .top-performers li, .bug-analysis li {
+            color: #bbf7d0;
+        }
+
+        .comparison-note {
+            background: #1e3a8a;
+            border-left: 4px solid #3b82f6;
+        }
+
+        .comparison-note em {
+            color: #bfdbfe;
+        }
+
+        .trend-analysis {
+            background: #334155;
+            border-left: 4px solid #3b82f6;
+        }
+
+        .trend-analysis h4 {
+            color: #f1f5f9;
+        }
+
+        .trend-item {
+            background: #475569;
+            border-color: #64748b;
+            color: #f1f5f9;
+        }
+
+        .trend-item.positive {
+            background: #166534;
+            border-color: #15803d;
+            color: #bbf7d0;
+        }
+
+        .trend-item.negative {
+            background: #991b1b;
+            border-color: #dc2626;
+            color: #fecaca;
+        }
     }
-  </style>
+</style>
+`;
+
+// Generate the complete HTML report
+const emailHtml = `
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Executive Sprint Report</title>
+    ${cssStyles}
 </head>
 <body>
-  <div class="container">
-    <div class="header">
-      <h1>📊 Relatório de Sprint</h1>
-      <div class="date">${formattedDate}</div>
-    </div>
-
-    <div class="content">
-      ${
-				currentSprint
-					? `
-        <div class="sprint-info">
-          <h3>Sprint ${currentSprint.title}</h3>
-          <p><strong>Período:</strong> ${new Date(
-						currentSprint.startDate,
-					).toLocaleDateString('pt-BR')} a ${new Date(
-							currentSprint.endDate,
-					  ).toLocaleDateString('pt-BR')} (${currentSprint.duration} dias)</p>
-
-          <div class="sprint-metrics">
-            <div class="metric-highlight">
-              <div class="metric-value">${currentSprint.sprintCompletionRate.toFixed(
-								2,
-							)}%</div>
-              <div class="metric-label">Taxa de Conclusão</div>
-            </div>
-            <div class="metric-highlight">
-              <div class="metric-value">${
-								currentSprint.totalEstimateDelivered
-							}</div>
-              <div class="metric-label">Pontos Entregues</div>
-            </div>
-            <div class="metric-highlight">
-              <div class="metric-value">${
-								currentSprint.totalEstimatePending
-							}</div>
-              <div class="metric-label">Pontos Pendentes</div>
-            </div>
-            <div class="metric-highlight">
-              <div class="metric-value">${currentSprint.bugFixRate.toFixed(
-								1,
-							)}%</div>
-              <div class="metric-label">Taxa Resolução Bugs</div>
-            </div>
-          </div>
-
-          <div class="progress-bar-container">
-            <div class="progress-bar" style="width: ${currentSprint.sprintCompletionRate.toFixed(
-							2,
-						)}%">
-              ${currentSprint.sprintCompletionRate.toFixed(2)}% Completo
-            </div>
-          </div>
+    <div class="container">
+        <div class="header">
+            <h1>Executive Sprint Report</h1>
+            <div class="subtitle">${
+							currentSprint ? currentSprint.title : 'Sprint Analysis'
+						} - ${formattedDate}</div>
         </div>
-      `
-					: ''
-			}
 
-      <div class="summary-box">
-        <h3>📈 Resumo Executivo</h3>
-        ${
-					currentSprint
-						? `
-          <p><strong>Sprint:</strong> ${currentSprint.title} (${
-								currentSprint.currentSprint ? 'Em andamento' : 'Finalizada'
-						  })</p>
-          <p><strong>Equipe:</strong> ${
-						currentSprint.totalMembers
-					} membros ativos</p>
-          <p><strong>Workload:</strong> ${
-						currentSprint.totalIssues
-					} issues totalizando ${currentSprint.totalSprintEstimate} pontos</p>
-          <p><strong>Performance:</strong> Taxa de throughput de ${currentSprint.issueThroughputRate.toFixed(
-						1,
-					)} issues/dia e ${currentSprint.membersThroughputRate.toFixed(
-								1,
-						  )} pontos/membro</p>
-          <p><strong>Qualidade:</strong> ${
-						currentSprint.totalBugs
-					} bugs no total, com ${currentSprint.bugFixRate.toFixed(
-								1,
-						  )}% de taxa de resolução</p>
-        `
-						: '<p>Dados de sprint não disponíveis</p>'
-				}
-      </div>
+        ${executiveSummary}
 
-      <div class="stats-container">
-        ${quickStats.join('')}
-      </div>
+        <div class="section">
+            ${priorityAnalysis}
+        </div>
 
-      ${memberDetails}
+        <div class="section">
+            ${teamOverview}
+        </div>
 
-      ${carryOverAnalysis}
+        <div class="section">
+            ${sprintComparison}
+        </div>
 
-      ${priorityAnalysis}
-
-      ${sprintComparison}
-
-      <div class="footer">
-        <p>Dados extraídos do GitHub Projects em ${formattedDate}</p>
-      </div>
+        <div class="footer">
+            <p>Data extracted from GitHub Projects on ${formattedDate}</p>
+        </div>
     </div>
-  </div>
 </body>
 </html>
 `;
 
-// Retornar o HTML formatado e o assunto do email
+// Return the formatted HTML and email subject
 return {
 	json: {
-		subject: `📊 Relatório Sprint ${
-			currentSprint ? currentSprint.title : 'Análise'
+		subject: `Executive Sprint Report - ${
+			currentSprint ? currentSprint.title : 'Sprint Analysis'
 		} - ${today.toLocaleDateString('pt-BR')}`,
 		emailHtml: emailHtml,
 		summary: {
 			sprintTitle: currentSprint ? currentSprint.title : 'N/A',
-			completionRate: currentSprint ? currentSprint.sprintCompletionRate : 0,
+			completionRate: currentSprint
+				? parseFloat(currentSprint.sprintCompletionRate).toFixed(1)
+				: '0.0',
 			totalIssues: currentSprint ? currentSprint.totalIssues : 0,
 			totalMembers: currentSprint ? currentSprint.totalMembers : 0,
-			bugFixRate: currentSprint ? currentSprint.bugFixRate.toFixed(1) : '0.0',
+			bugFixRate: currentSprint
+				? parseFloat(currentSprint.bugFixRate).toFixed(1)
+				: '0.0',
 			throughputRate: currentSprint
-				? currentSprint.issueThroughputRate.toFixed(1)
+				? parseFloat(currentSprint.issueThroughputRate).toFixed(1)
 				: '0.0',
 		},
 	},
