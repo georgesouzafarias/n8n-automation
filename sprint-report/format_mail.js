@@ -542,8 +542,8 @@ const cssStyles = `
     body {
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
         line-height: 1.6;
-        color: #333;
-        background-color: #f8f9fa;
+        color: #374151;
+        background-color: #f9fafb;
     }
 
     .container {
@@ -551,7 +551,7 @@ const cssStyles = `
         margin: 0 auto;
         padding: 20px;
         background: white;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         border-radius: 8px;
     }
 
@@ -559,24 +559,25 @@ const cssStyles = `
         text-align: center;
         margin-bottom: 30px;
         padding-bottom: 20px;
-        border-bottom: 2px solid #e9ecef;
+        border-bottom: 2px solid #e5e7eb;
     }
 
     .header h1 {
-        color: #2c3e50;
+        color: #111827;
         font-size: 2.2em;
         margin-bottom: 10px;
+        font-weight: 600;
     }
 
     .header .subtitle {
-        color: #6c757d;
+        color: #6b7280;
         font-size: 1.1em;
     }
 
     .executive-summary {
         margin-bottom: 30px;
         padding: 20px;
-        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+        background: linear-gradient(135deg, #4b5563 0%, #374151 100%);
         color: white;
         border-radius: 8px;
     }
@@ -594,23 +595,28 @@ const cssStyles = `
     }
 
     .metric {
-        background: rgba(255,255,255,0.1);
+        background: rgba(255,255,255,0.15);
         padding: 15px;
         border-radius: 6px;
         text-align: center;
         backdrop-filter: blur(10px);
+        border: 1px solid rgba(255,255,255,0.1);
     }
 
     .metric.alert {
-        background: rgba(220, 53, 69, 0.8);
+        background: rgba(239, 68, 68, 0.9);
+        border-color: rgba(239, 68, 68, 0.3);
     }
 
     .metric.warning {
-        background: rgba(255, 193, 7, 0.8);
+        background: rgba(245, 158, 11, 0.9);
+        border-color: rgba(245, 158, 11, 0.3);
+        color: #1f2937;
     }
 
     .metric.success {
-        background: rgba(40, 167, 69, 0.8);
+        background: rgba(34, 197, 94, 0.9);
+        border-color: rgba(34, 197, 94, 0.3);
     }
 
     .metric .label {
@@ -634,15 +640,15 @@ const cssStyles = `
     }
 
     .risk-alerts, .burnout-alert {
-        background: rgba(220, 53, 69, 0.1);
+        background: rgba(254, 226, 226, 0.8);
         padding: 15px;
         border-radius: 6px;
         margin-top: 15px;
-        border-left: 4px solid #dc3545;
+        border-left: 4px solid #ef4444;
     }
 
     .risk-alerts h3, .burnout-alert h3 {
-        color: #dc3545;
+        color: #dc2626;
         margin-bottom: 10px;
     }
 
@@ -653,7 +659,11 @@ const cssStyles = `
 
     .risk-alerts li {
         padding: 5px 0;
-        color: #721c24;
+        color: #991b1b;
+    }
+
+    .burnout-alert p {
+        color: #991b1b;
     }
 
     .section {
@@ -661,15 +671,17 @@ const cssStyles = `
         padding: 20px;
         background: white;
         border-radius: 8px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        border: 1px solid #f3f4f6;
     }
 
     .section h3 {
-        color: #2c3e50;
+        color: #111827;
         margin-bottom: 15px;
         font-size: 1.4em;
-        border-bottom: 2px solid #e9ecef;
+        border-bottom: 2px solid #e5e7eb;
         padding-bottom: 10px;
+        font-weight: 600;
     }
 
     .priority-table, .comparison-table {
@@ -686,13 +698,13 @@ const cssStyles = `
     }
 
     .priority-table th, .comparison-table th {
-        background-color: #f8f9fa;
+        background-color: #f9fafb;
         font-weight: 600;
-        color: #495057;
+        color: #374151;
     }
 
     .priority-table tr.critical {
-        background-color: #fff5f5;
+        background-color: #fef2f2;
     }
 
     .team-stats {
@@ -703,20 +715,23 @@ const cssStyles = `
     }
 
     .stat {
-        background: #f8f9fa;
+        background: #f9fafb;
         padding: 15px;
         border-radius: 6px;
         text-align: center;
+        border: 1px solid #f3f4f6;
     }
 
     .stat.alert {
-        background: #f8d7da;
-        color: #721c24;
+        background: #fef2f2;
+        color: #991b1b;
+        border-color: #fecaca;
     }
 
     .stat.success {
-        background: #d1ecf1;
-        color: #0c5460;
+        background: #f0fdf4;
+        color: #166534;
+        border-color: #bbf7d0;
     }
 
     .stat .label {
@@ -733,15 +748,16 @@ const cssStyles = `
     }
 
     .top-performers, .bug-analysis {
-        background: #f8f9fa;
+        background: #f0fdf4;
         padding: 15px;
         border-radius: 6px;
         margin-top: 15px;
-        border-left: 4px solid #28a745;
+        border-left: 4px solid #22c55e;
+        border: 1px solid #bbf7d0;
     }
 
     .top-performers h4, .bug-analysis h4 {
-        color: #155724;
+        color: #166534;
         margin-bottom: 10px;
         font-size: 1em;
     }
@@ -753,20 +769,21 @@ const cssStyles = `
 
     .top-performers li, .bug-analysis li {
         padding: 3px 0;
-        color: #155724;
+        color: #166534;
         font-size: 0.9em;
     }
 
     .comparison-note {
-        background: #e7f3ff;
+        background: #eff6ff;
         padding: 10px;
         border-radius: 4px;
         margin-bottom: 15px;
-        border-left: 4px solid #007bff;
+        border-left: 4px solid #3b82f6;
+        border: 1px solid #bfdbfe;
     }
 
     .comparison-note em {
-        color: #004085;
+        color: #1e40af;
         font-size: 0.9em;
     }
 
@@ -778,13 +795,14 @@ const cssStyles = `
     .trend-analysis {
         margin-top: 20px;
         padding: 15px;
-        background: #f8f9fa;
+        background: #f9fafb;
         border-radius: 6px;
-        border-left: 4px solid #007bff;
+        border-left: 4px solid #6b7280;
+        border: 1px solid #e5e7eb;
     }
 
     .trend-analysis h4 {
-        color: #495057;
+        color: #374151;
         margin-bottom: 10px;
         font-size: 1em;
     }
@@ -800,20 +818,21 @@ const cssStyles = `
         padding: 8px 12px;
         border-radius: 4px;
         font-size: 0.9em;
-        border: 1px solid #dee2e6;
+        border: 1px solid #e5e7eb;
         white-space: nowrap;
+        color: #374151;
     }
 
     .trend-item.positive {
-        color: #155724;
-        background: #d4edda;
-        border-color: #c3e6cb;
+        color: #166534;
+        background: #dcfce7;
+        border-color: #bbf7d0;
     }
 
     .trend-item.negative {
-        color: #721c24;
-        background: #f8d7da;
-        border-color: #f5c6cb;
+        color: #991b1b;
+        background: #fee2e2;
+        border-color: #fecaca;
     }
 
     @media (max-width: 768px) {
@@ -834,64 +853,72 @@ const cssStyles = `
         }
     }    @media (prefers-color-scheme: dark) {
         body {
-            background-color: #0f172a;
-            color: #f1f5f9;
+            background-color: #111827;
+            color: #f3f4f6;
         }
 
         .container {
-            background: #1e293b;
-            color: #f1f5f9;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            background: #1f2937;
+            color: #f3f4f6;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
         }
 
         .header h1 {
-            color: #f1f5f9;
+            color: #f9fafb;
         }
 
         .header .subtitle {
-            color: #94a3b8;
+            color: #9ca3af;
         }
 
         .header {
-            border-bottom: 2px solid #334155;
+            border-bottom: 2px solid #374151;
+        }
+
+        .executive-summary {
+            background: linear-gradient(135deg, #374151 0%, #1f2937 100%);
         }
 
         .section {
-            background: #334155;
-            color: #f1f5f9;
+            background: #374151;
+            color: #f3f4f6;
+            border-color: #4b5563;
         }
 
         .section h3 {
-            color: #f1f5f9;
-            border-bottom: 2px solid #475569;
+            color: #f9fafb;
+            border-bottom: 2px solid #4b5563;
         }
 
         .priority-table th, .comparison-table th {
-            background-color: #475569;
-            color: #f1f5f9;
+            background-color: #4b5563;
+            color: #f3f4f6;
         }
 
         .priority-table td, .comparison-table td {
-            border-bottom: 1px solid #475569;
+            border-bottom: 1px solid #4b5563;
         }
 
         .priority-table tr.critical {
-            background-color: #450a0a;
+            background-color: #7f1d1d;
         }
 
         .stat {
-            background: #475569;
-            color: #f1f5f9;
+            background: #4b5563;
+            color: #f3f4f6;
+            border-color: #6b7280;
         }
 
         .stat.alert {
             background: #991b1b;
             color: #fecaca;
+            border-color: #dc2626;
         }
 
         .stat.success {
             background: #166534;
             color: #bbf7d0;
+            border-color: #22c55e;
         }
 
         .workload-alert {
@@ -909,13 +936,14 @@ const cssStyles = `
         }
 
         .footer {
-            border-top: 1px solid #334155;
-            color: #94a3b8;
+            border-top: 1px solid #374151;
+            color: #9ca3af;
         }
 
         .risk-alerts, .burnout-alert {
-            background: rgba(153, 27, 27, 0.3);
+            background: rgba(127, 29, 29, 0.4);
             border-left: 4px solid #ef4444;
+            border-color: #dc2626;
         }
 
         .risk-alerts h3, .burnout-alert h3 {
@@ -931,8 +959,9 @@ const cssStyles = `
         }
 
         .top-performers, .bug-analysis {
-            background: #166534;
+            background: #14532d;
             border-left: 4px solid #22c55e;
+            border-color: #16a34a;
         }
 
         .top-performers h4, .bug-analysis h4 {
@@ -946,6 +975,7 @@ const cssStyles = `
         .comparison-note {
             background: #1e3a8a;
             border-left: 4px solid #3b82f6;
+            border-color: #2563eb;
         }
 
         .comparison-note em {
@@ -953,28 +983,29 @@ const cssStyles = `
         }
 
         .trend-analysis {
-            background: #334155;
-            border-left: 4px solid #3b82f6;
+            background: #374151;
+            border-left: 4px solid #6b7280;
+            border-color: #4b5563;
         }
 
         .trend-analysis h4 {
-            color: #f1f5f9;
+            color: #f3f4f6;
         }
 
         .trend-item {
-            background: #475569;
-            border-color: #64748b;
-            color: #f1f5f9;
+            background: #4b5563;
+            border-color: #6b7280;
+            color: #f3f4f6;
         }
 
         .trend-item.positive {
-            background: #166534;
-            border-color: #15803d;
+            background: #14532d;
+            border-color: #16a34a;
             color: #bbf7d0;
         }
 
         .trend-item.negative {
-            background: #991b1b;
+            background: #7f1d1d;
             border-color: #dc2626;
             color: #fecaca;
         }
