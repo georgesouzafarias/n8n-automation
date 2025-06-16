@@ -503,10 +503,228 @@ function generateSprintComparison(current, previous) {
     `;
 }
 
+/**
+ * Generate detailed individual performance breakdown
+ */
+function generateMemberDetails(current, previous) {
+	if (!current.estimateDeliveredByAssignee && !current.bugDeliveredByAssignee) {
+		return '';
+	}
+
+	// Current sprint individual performance
+	const currentSprintDetails = generateCurrentSprintMemberDetails(current);
+
+	// Historical comparison
+	const historicalComparison =
+		previous && previous.length > 0
+			? generateHistoricalMemberComparison(current, previous.slice(0, 3))
+			: '';
+
+	return `
+		<div class="member-details">
+			<h3>Individual Performance Analysis</h3>
+			${currentSprintDetails}
+			${historicalComparison}
+		</div>
+	`;
+}
+
+/**
+ * Generate current sprint member performance details
+ */
+function generateCurrentSprintMemberDetails(sprint) {
+	const memberData = [];
+
+	// Get all members from different data sources
+	const allMembers = new Set([
+		...Object.keys(sprint.estimateDeliveredByAssignee || {}),
+		...Object.keys(sprint.estimatePendingByAssignee || {}),
+		...Object.keys(sprint.bugDeliveredByAssignee || {}),
+		...Object.keys(sprint.bugTotalByAssignee || {}),
+	]);
+
+	allMembers.forEach((member) => {
+		const estimateDelivered = sprint.estimateDeliveredByAssignee?.[member] || 0;
+		const estimatePending = sprint.estimatePendingByAssignee?.[member] || 0;
+		const estimateTotal = estimateDelivered + estimatePending;
+		const estimateRate =
+			estimateTotal > 0
+				? ((estimateDelivered / estimateTotal) * 100).toFixed(1)
+				: '0';
+
+		const bugsDelivered = sprint.bugDeliveredByAssignee?.[member] || 0;
+		const bugsTotal = sprint.bugTotalByAssignee?.[member] || 0;
+		const bugRate =
+			bugsTotal > 0 ? ((bugsDelivered / bugsTotal) * 100).toFixed(1) : '0';
+
+		memberData.push({
+			member,
+			estimateDelivered,
+			estimateTotal,
+			estimateRate: parseFloat(estimateRate),
+			bugsDelivered,
+			bugsTotal,
+			bugRate: parseFloat(bugRate),
+		});
+	});
+
+	// Sort by estimate delivery rate, then by total estimates
+	memberData.sort((a, b) => {
+		if (b.estimateRate !== a.estimateRate) {
+			return b.estimateRate - a.estimateRate;
+		}
+		return b.estimateDelivered - a.estimateDelivered;
+	});
+
+	if (memberData.length === 0) return '';
+
+	return `
+		<div class="current-sprint-details">
+			<h4>Current Sprint - Individual Delivery Rates</h4>
+			<table class="member-performance-table">
+				<tr>
+					<th>Member</th>
+					<th>Story Points</th>
+					<th>Delivery %</th>
+					<th>Bugs Fixed</th>
+					<th>Bug Fix %</th>
+				</tr>
+				${memberData
+					.map(
+						(data) => `
+					<tr class="${
+						data.estimateRate < 60
+							? 'low-performance'
+							: data.estimateRate > 90
+							? 'high-performance'
+							: ''
+					}">
+						<td><strong>${data.member}</strong></td>
+						<td>${data.estimateDelivered}/${data.estimateTotal} pts</td>
+						<td class="${
+							data.estimateRate < 60
+								? 'alert'
+								: data.estimateRate > 90
+								? 'success'
+								: 'neutral'
+						}">${data.estimateRate}%</td>
+						<td>${data.bugsDelivered}/${data.bugsTotal}</td>
+						<td class="${
+							data.bugRate < 60
+								? 'alert'
+								: data.bugRate > 90
+								? 'success'
+								: 'neutral'
+						}">${data.bugRate}%</td>
+					</tr>
+				`,
+					)
+					.join('')}
+			</table>
+		</div>
+	`;
+}
+
+/**
+ * Generate historical member comparison across sprints
+ */
+function generateHistoricalMemberComparison(current, previousSprints) {
+	if (!previousSprints || previousSprints.length === 0) return '';
+
+	// Get all members across all sprints
+	const allMembers = new Set();
+	[current, ...previousSprints].forEach((sprint) => {
+		Object.keys(sprint.estimateDeliveredByAssignee || {}).forEach((member) =>
+			allMembers.add(member),
+		);
+		Object.keys(sprint.bugDeliveredByAssignee || {}).forEach((member) =>
+			allMembers.add(member),
+		);
+	});
+
+	const memberHistoricalData = [];
+
+	allMembers.forEach((member) => {
+		const currentEstimate = current.estimateDeliveredByAssignee?.[member] || 0;
+		const currentBugs = current.bugDeliveredByAssignee?.[member] || 0;
+
+		// Calculate totals from previous sprints
+		const previousEstimate = previousSprints.reduce((sum, sprint) => {
+			return sum + (sprint.estimateDeliveredByAssignee?.[member] || 0);
+		}, 0);
+
+		const previousBugs = previousSprints.reduce((sum, sprint) => {
+			return sum + (sprint.bugDeliveredByAssignee?.[member] || 0);
+		}, 0);
+
+		memberHistoricalData.push({
+			member,
+			currentEstimate,
+			previousEstimate,
+			currentBugs,
+			previousBugs,
+			totalEstimate: currentEstimate + previousEstimate,
+			totalBugs: currentBugs + previousBugs,
+		});
+	});
+
+	// Sort by total delivered estimates
+	memberHistoricalData.sort((a, b) => b.totalEstimate - a.totalEstimate);
+
+	if (memberHistoricalData.length === 0) return '';
+
+	return `
+		<div class="historical-comparison">
+			<h4>Historical Comparison - Last ${
+				previousSprints.length + 1
+			} Sprints (Absolute Delivery)</h4>
+			<table class="member-historical-table">
+				<tr>
+					<th>Member</th>
+					<th>Current Sprint</th>
+					<th>Previous ${previousSprints.length} Sprints</th>
+					<th>Total Delivered</th>
+					<th>Trend</th>
+				</tr>
+				${memberHistoricalData
+					.map((data) => {
+						const estimateTrend =
+							data.currentEstimate -
+							data.previousEstimate / previousSprints.length;
+						const bugTrend =
+							data.currentBugs - data.previousBugs / previousSprints.length;
+						const overallTrend = estimateTrend + bugTrend;
+
+						return `
+						<tr>
+							<td><strong>${data.member}</strong></td>
+							<td>${data.currentEstimate} pts, ${data.currentBugs} bugs</td>
+							<td>${data.previousEstimate} pts, ${data.previousBugs} bugs</td>
+							<td>${data.totalEstimate} pts, ${data.totalBugs} bugs</td>
+							<td class="${
+								overallTrend > 0
+									? 'positive'
+									: overallTrend < 0
+									? 'negative'
+									: 'neutral'
+							}">
+								${overallTrend > 0 ? '▲' : overallTrend < 0 ? '▼' : '━'}
+								${overallTrend !== 0 ? Math.abs(overallTrend).toFixed(1) : '0'}
+							</td>
+						</tr>
+					`;
+					})
+					.join('')}
+			</table>
+		</div>
+	`;
+}
+
 // Generate the complete executive report components
 const executiveSummary = generateExecutiveSummary(currentSprint);
 const priorityAnalysis = generatePriorityAnalysis(currentSprint);
 const teamOverview = generateTeamOverview(currentSprint);
+const memberDetails = generateMemberDetails(currentSprint, previousSprints);
 const sprintComparison = generateSprintComparison(
 	currentSprint,
 	previousSprints,
@@ -817,6 +1035,64 @@ const cssStyles = `
         border-color: #fecaca;
     }
 
+    /* Member Details Styling */
+    .member-details {
+        margin-bottom: 30px;
+    }
+
+    .current-sprint-details, .historical-comparison {
+        margin-bottom: 20px;
+    }
+
+    .member-performance-table, .member-historical-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+        font-size: 0.9em;
+    }
+
+    .member-performance-table th, .member-historical-table th,
+    .member-performance-table td, .member-historical-table td {
+        padding: 10px 8px;
+        text-align: left;
+        border-bottom: 1px solid #e5e7eb;
+    }
+
+    .member-performance-table th, .member-historical-table th {
+        background-color: #f9fafb;
+        font-weight: 600;
+        color: #374151;
+        font-size: 0.85em;
+    }
+
+    .member-performance-table tr.high-performance {
+        background-color: #f0fdf4;
+    }
+
+    .member-performance-table tr.low-performance {
+        background-color: #fef2f2;
+    }
+
+    .member-performance-table td.alert, .member-historical-table td.alert {
+        color: #fca5a5;
+    }
+
+    .member-performance-table td.success, .member-historical-table td.success {
+        color: #bbf7d0;
+    }
+
+    .member-performance-table td.neutral, .member-historical-table td.neutral {
+        color: #9ca3af;
+    }
+
+    .member-historical-table td.positive {
+        color: #bbf7d0;
+    }
+
+    .member-historical-table td.negative {
+        color: #fca5a5;
+    }
+
     @media (max-width: 768px) {
         .container {
             padding: 15px;
@@ -991,6 +1267,44 @@ const cssStyles = `
             border-color: #dc2626;
             color: #fecaca;
         }
+
+        /* Dark mode for member details */
+        .member-performance-table th, .member-historical-table th {
+            background-color: #4b5563;
+            color: #f3f4f6;
+        }
+
+        .member-performance-table td, .member-historical-table td {
+            border-bottom: 1px solid #4b5563;
+        }
+
+        .member-performance-table tr.high-performance {
+            background-color: #14532d;
+        }
+
+        .member-performance-table tr.low-performance {
+            background-color: #7f1d1d;
+        }
+
+        .member-performance-table td.alert, .member-historical-table td.alert {
+            color: #fca5a5;
+        }
+
+        .member-performance-table td.success, .member-historical-table td.success {
+            color: #bbf7d0;
+        }
+
+        .member-performance-table td.neutral, .member-historical-table td.neutral {
+            color: #9ca3af;
+        }
+
+        .member-historical-table td.positive {
+            color: #bbf7d0;
+        }
+
+        .member-historical-table td.negative {
+            color: #fca5a5;
+        }
     }
 </style>
 `;
@@ -1026,6 +1340,10 @@ const emailHtml = `
 
         <div class="section">
             ${sprintComparison}
+        </div>
+
+        <div class="section">
+            ${memberDetails}
         </div>
 
         <div class="footer">
