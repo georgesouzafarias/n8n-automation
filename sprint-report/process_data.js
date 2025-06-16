@@ -298,17 +298,26 @@ const summarySprints = sprintsStructured.map(function (sprint) {
 
 	const totalBugs = totalBugsDelivered + totalBugsPending;
 
+	/**
+	 * Calculate throughput and performance metrics
+	 */
+	// Issues throughput rate (estimate points delivered per day)
 	const issueThroughputRate = (
 		totalEstimateDelivered / sprint.duration
 	).toFixed(2);
 
+	// Team productivity rate (estimate points delivered per team member)
 	const membersThroughputRate = (totalEstimateDelivered / totalMembers).toFixed(
 		2,
 	);
 
+	// Bug resolution rate percentage
 	const bugFixRate =
 		totalBugs > 0 ? ((totalBugsDelivered / totalBugs) * 100).toFixed(2) : 0;
 
+	/**
+	 * Extract unique priority values from issues
+	 */
 	const listPriority = [
 		...new Set(
 			sprint.issues.map(function (issue) {
@@ -317,30 +326,40 @@ const summarySprints = sprintsStructured.map(function (sprint) {
 		),
 	];
 
+	/**
+	 * DISTRIBUTION ANALYSIS BY DIFFERENT DIMENSIONS
+	 * Calculate count and estimate distributions across various categories
+	 */
+
+	// Count issues by type (Bug, Feature, Task, Story, etc.)
 	const issueCountByType = sprint.issues.reduce(function (acc, issue) {
 		const issueType = issue.issueType;
 		acc[issueType] = (acc[issueType] || 0) + 1;
 		return acc;
 	}, {});
 
+	// Count issues by status (Open, In Progress, Done, etc.)
 	const issueCountByStatus = sprint.issues.reduce(function (acc, issue) {
 		const status = issue.status;
 		acc[status] = (acc[status] || 0) + 1;
 		return acc;
 	}, {});
 
+	// Count issues by priority (P0, P1, P2, etc.)
 	const issueCountByPriority = sprint.issues.reduce(function (acc, issue) {
 		const priority = issue.priority;
 		acc[priority] = (acc[priority] || 0) + 1;
 		return acc;
 	}, {});
 
+	// Sum estimate points by priority level
 	const estimateTotalByPriority = sprint.issues.reduce(function (acc, issue) {
 		const priority = issue.priority;
 		acc[priority] = (acc[priority] || issue.estimate) + 1;
 		return acc;
 	}, {});
 
+	// Count bugs specifically by priority level
 	const bugCountByPriority = sprint.issues
 		.filter(function (issue) {
 			return issue.issueType === 'Bug';
@@ -351,6 +370,11 @@ const summarySprints = sprintsStructured.map(function (sprint) {
 			return acc;
 		}, {});
 
+	/**
+	 * CRITICAL BUG ANALYSIS
+	 * Identify and count high-priority bugs (P0/P1) for risk assessment
+	 */
+	// Count critical bugs (P0 and P1 priority)
 	const criticalBugCountP0P1 = sprint.issues
 		.filter(function (issue) {
 			return (
@@ -362,6 +386,7 @@ const summarySprints = sprintsStructured.map(function (sprint) {
 			return acc + 1;
 		}, 0);
 
+	// Count delivered critical bugs (P0/P1 that are closed)
 	const criticalBugCountP0P1Delivered = sprint.issues
 		.filter(function (issue) {
 			return (
@@ -373,12 +398,22 @@ const summarySprints = sprintsStructured.map(function (sprint) {
 			return acc + 1;
 		}, 0);
 
+	/**
+	 * ESTIMATE DISTRIBUTION BY STATUS
+	 * Sum estimate points grouped by issue status
+	 */
 	const estimateTotalByStatus = sprint.issues.reduce(function (acc, issue) {
 		const status = issue.status;
 		acc[status] = (acc[status] || 0) + issue.estimate;
 		return acc;
 	}, {});
 
+	/**
+	 * TEAM PERFORMANCE ANALYSIS BY ASSIGNEE
+	 * Calculate workload distribution and individual performance metrics
+	 */
+
+	// Count issues assigned to each team member
 	const issueCountByAssignee = sprint.issues.reduce(function (acc, issue) {
 		const assignees = Array.isArray(issue.assignees)
 			? issue.assignees
@@ -390,6 +425,7 @@ const summarySprints = sprintsStructured.map(function (sprint) {
 		return acc;
 	}, {});
 
+	// Sum estimate points assigned to each team member
 	const estimateTotalByAssignee = sprint.issues.reduce((acc, issue) => {
 		const assignees = Array.isArray(issue.assignees)
 			? issue.assignees
@@ -402,6 +438,7 @@ const summarySprints = sprintsStructured.map(function (sprint) {
 		return acc;
 	}, {});
 
+	// Sum delivered estimate points by each team member (closed issues only)
 	const estimateDeliveredByAssignee = sprint.issues
 		.filter(function (issue) {
 			return issue.state === 'CLOSED';
@@ -418,6 +455,7 @@ const summarySprints = sprintsStructured.map(function (sprint) {
 			return acc;
 		}, {});
 
+	// Count bugs delivered by each team member
 	const bugDeliveredByAssignee = sprint.issues
 		.filter(function (issue) {
 			return issue.state === 'CLOSED' && issue.issueType == 'Bug';
@@ -466,6 +504,10 @@ const summarySprints = sprintsStructured.map(function (sprint) {
 			return acc;
 		}, {});
 
+	/**
+	 * CARRY-OVER ANALYSIS
+	 * Track issues carried over from previous sprints by analyzing labels
+	 */
 	const carryOverEstimatePerSprint = sprint.issues.reduce((acc, issue) => {
 		issue.labels.forEach((label) => {
 			const labelName = label.name;
@@ -478,6 +520,10 @@ const summarySprints = sprintsStructured.map(function (sprint) {
 		return acc;
 	}, {});
 
+	/**
+	 * HOTFIX TRACKING
+	 * Count issues marked as hotfixes for emergency deployment analysis
+	 */
 	const bugHotfixCount = sprint.issues.reduce((acc, issue) => {
 		issue.labels.forEach((label) => {
 			const labelName = label.name;
@@ -490,6 +536,12 @@ const summarySprints = sprintsStructured.map(function (sprint) {
 		return acc;
 	}, {});
 
+	/**
+	 * WORKLOAD DISTRIBUTION ANALYSIS
+	 * Calculate percentage distribution of work and risk indicators
+	 */
+
+	// Calculate each assignee's percentage of total sprint estimate
 	const estimateLoadDistributionByAssignee = {};
 
 	for (const [assignee, points] of Object.entries(estimateTotalByAssignee)) {
@@ -498,6 +550,7 @@ const summarySprints = sprintsStructured.map(function (sprint) {
 		);
 	}
 
+	// Calculate each assignee's percentage of total bugs
 	const bugLoadDistributionByAssignee = {};
 
 	for (const [assignee, bugs] of Object.entries(bugTotalByAssignee)) {
@@ -506,6 +559,10 @@ const summarySprints = sprintsStructured.map(function (sprint) {
 		);
 	}
 
+	/**
+	 * BURNOUT RISK ASSESSMENT
+	 * Calculate risk score based on workload compared to team average
+	 */
 	const burnoutRiskScore = {};
 
 	for (const [assignee, points] of Object.entries(estimateTotalByAssignee)) {
@@ -514,8 +571,16 @@ const summarySprints = sprintsStructured.map(function (sprint) {
 		);
 	}
 
+	/**
+	 * SPRINT OBJECT CONSTRUCTION
+	 * Remove raw issues array and combine with all calculated metrics
+	 */
 	const { issues, ...sprintWithoutIssues } = sprint;
 
+	/**
+	 * Return enriched sprint object with comprehensive analytics
+	 * Contains all basic sprint info plus calculated metrics and distributions
+	 */
 	return {
 		...sprintWithoutIssues,
 		totalIssues,
