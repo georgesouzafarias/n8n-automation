@@ -433,19 +433,11 @@ function generateSprintComparison(current, previous) {
 											.map((sprint) => `<td>${sprint.totalMembers}</td>`)
 											.join('')}
                 </tr>
-                <tr>
-                    <td>Bug Fix Rate</td>
-                    <td>${parseFloat(current.bugFixRate).toFixed(1)}%</td>
-                    ${lastThreeSprints
-											.map(
-												(sprint) =>
-													`<td>${parseFloat(sprint.bugFixRate).toFixed(
-														1,
-													)}%</td>`,
-											)
-											.join('')}
-                </tr>
             </table>
+
+            <div class="comparison-note">
+                <p><em>Note: Completion and bug fix rates not compared due to sprint methodology differences</em></p>
+            </div>
 
             <div class="trend-analysis">
                 <h4>📈 Trend Analysis vs ${
@@ -463,9 +455,6 @@ function generateSprintComparison(current, previous) {
 												parseFloat(current.membersThroughputRate) -
 												parseFloat(prev.membersThroughputRate);
 											const bugTrend = current.totalBugs - prev.totalBugs;
-											const bugFixTrend =
-												parseFloat(current.bugFixRate) -
-												parseFloat(prev.bugFixRate);
 
 											const currentHotfixes = Object.values(
 												current.bugHotfixCount || {},
@@ -498,13 +487,6 @@ function generateSprintComparison(current, previous) {
                                 Total Bugs: ${
 																	bugTrend <= 0 ? '▼' : '▲'
 																} ${Math.abs(bugTrend)}
-                            </span>
-                            <span class="trend-item ${
-															bugFixTrend >= 0 ? 'positive' : 'negative'
-														}">
-                                Bug Fix Rate: ${
-																	bugFixTrend >= 0 ? '▲' : '▼'
-																} ${Math.abs(bugFixTrend).toFixed(1)}%
                             </span>
                             <span class="trend-item ${
 															hotfixTrend <= 0 ? 'positive' : 'negative'
