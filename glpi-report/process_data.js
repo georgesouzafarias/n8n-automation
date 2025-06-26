@@ -6,7 +6,7 @@ let isLocalEnvironment = false;
 if (typeof $input !== 'undefined' && $input && $input.all) {
 	// Ambiente n8n
 	console.log('Ambiente n8n detectado');
-	inputData = $input.all();
+	inputData = $input.first().json.datas;
 } else if (
 	typeof $input !== 'undefined' &&
 	$input &&
@@ -84,8 +84,9 @@ if (Array.isArray(inputData)) {
 
 console.log(`Processando ${dataToProcess.length} item(s) de dados`);
 
-// Processar dados GLPI
-const results = [];
+// Estrutura para agrupar por setor
+const setoresSummary = {};
+let totalTicketsProcessados = 0;
 
 // Função para obter texto do status
 function getStatusText(statusId) {
@@ -127,36 +128,17 @@ function calcularDuracao(dataAbertura, dataFechamento) {
 // Processar cada item do array data
 dataToProcess.forEach((item, itemIndex) => {
 	try {
-		// Se o item contém apenas metadados (totalcount, count, etc), registrar informações
-		if (item.totalcount !== undefined || item.count !== undefined) {
-			// Se não tem tickets (count = 0), apenas registrar metadados
-			if (!item.data || !Array.isArray(item.data) || item.data.length === 0) {
-				results.push({
-					json: {
-						tipo: 'metadados_setor',
-						item_index: itemIndex,
-						totalcount: item.totalcount || 0,
-						count: item.count || 0,
-						content_range: item['content-range'] || '',
-						sort: item.sort || [],
-						order: item.order || [],
-						processado_em: new Date().toISOString(),
-					},
-				});
-				return;
-			}
+		// Se o item contém tickets para processar
+		if (
+			item.totalcount !== undefined &&
+			item.data &&
+			Array.isArray(item.data) &&
+			item.data.length > 0
+		) {
+			console.log(
+				`Processando ${item.data.length} tickets do item ${itemIndex}`,
+			);
 
-			// Se tem tickets, processar cada um
-			const setorInfo = {
-				tipo: 'conjunto_tickets',
-				item_index: itemIndex,
-				totalcount: item.totalcount || 0,
-				count: item.count || 0,
-				content_range: item['content-range'] || '',
-				total_tickets: item.data.length,
-			};
-
-			const ticketsProcessados = [];
 			item.data.forEach((ticket, ticketIndex) => {
 				try {
 					// Função para decodificar HTML
@@ -197,161 +179,203 @@ dataToProcess.forEach((item, itemIndex) => {
 					}
 
 					// Extrair dados básicos
-					const ticketData = {
-						// Informações de localização
-						item_index: itemIndex,
-						ticket_index: ticketIndex,
+					const setor =
+						stripHtml(decodeHtml(ticket['71'] || '')) || 'Sem setor definido';
+					const categoria = stripHtml(decodeHtml(ticket['7'] || ''));
+					const status = getStatusText(ticket['12']);
 
-						// Dados diretos dos campos do ticket
-						ticket_id: ticket['2'] || '',
+					// Extrair urgência de forma mais robusta
+					let urgencia = 'Não informado';
+					if (ticket['21']) {
+						const htmlContent = decodeHtml(ticket['21']);
+						const urgenciaRaw = extractBetween(
+							htmlContent,
+							'Urgência',
+							'</div>',
+						);
+						urgencia =
+							stripHtml(urgenciaRaw).replace(/^:\s*/, '').trim() ||
+							'Não informado';
+					}
+
+					// Inicializar setor se não existir
+					if (!setoresSummary[setor]) {
+						setoresSummary[setor] = {
+							setor: setor,
+							total_tickets: 0,
+							tickets_por_status: {},
+							tickets_por_categoria: {},
+							tickets_por_urgencia: {},
+							tempo_medio_resolucao: {
+								total_minutos: 0,
+								tickets_fechados: 0,
+							},
+							tickets: [],
+						};
+					}
+
+					// Incrementar contadores
+					setoresSummary[setor].total_tickets++;
+					totalTicketsProcessados++;
+
+					// Contar por status
+					setoresSummary[setor].tickets_por_status[status] =
+						(setoresSummary[setor].tickets_por_status[status] || 0) + 1;
+
+					// Contar por categoria (categoria principal)
+					const categoriaPrincipal = categoria
+						? categoria.split(' > ')[0]
+						: 'Sem categoria';
+					setoresSummary[setor].tickets_por_categoria[categoriaPrincipal] =
+						(setoresSummary[setor].tickets_por_categoria[categoriaPrincipal] ||
+							0) + 1;
+
+					// Contar por urgência
+					setoresSummary[setor].tickets_por_urgencia[urgencia] =
+						(setoresSummary[setor].tickets_por_urgencia[urgencia] || 0) + 1;
+
+					// Calcular tempo de resolução para tickets fechados
+					if (status === 'Fechado' && ticket['15'] && ticket['16']) {
+						const abertura = new Date(ticket['15']);
+						const fechamento = new Date(ticket['16']);
+						const diffMinutos = (fechamento - abertura) / (1000 * 60);
+
+						setoresSummary[setor].tempo_medio_resolucao.total_minutos +=
+							diffMinutos;
+						setoresSummary[setor].tempo_medio_resolucao.tickets_fechados++;
+					}
+
+					const ticketData = {
+						id: ticket['2'] || '',
 						titulo: stripHtml(decodeHtml(ticket['1'] || '')),
-						categoria: stripHtml(decodeHtml(ticket['7'] || '')),
-						grupo_atendimento: Array.isArray(ticket['8'])
-							? ticket['8'].join(', ')
-							: ticket['8'] || '',
-						setor_responsavel: stripHtml(decodeHtml(ticket['71'] || '')),
-						status_id: ticket['12'] || '',
-						status_texto: getStatusText(ticket['12']),
-						tecnico_responsavel: stripHtml(
-							decodeHtml(ticket['5'] || ticket['81'] || ''),
-						),
+						categoria_principal: categoriaPrincipal,
+						categoria_completa: categoria,
+						status: status,
+						urgencia: urgencia,
+						tecnico: stripHtml(decodeHtml(ticket['5'] || ticket['81'] || '')),
 						data_abertura: ticket['15'] || '',
 						data_fechamento: ticket['16'] || null,
 						duracao: calcularDuracao(ticket['15'], ticket['16']),
-
-						dados_extraidos: {},
 					};
 
-					// Processar conteúdo HTML se existir
+					// Processar descrição se existir
 					if (ticket['21']) {
 						const htmlContent = decodeHtml(ticket['21']);
+						const descricao = stripHtml(
+							extractBetween(htmlContent, '3) Descrição', '</div>')
+								.replace(/<p[^>]*>/g, '')
+								.replace(/<\/p>/g, ' '),
+						);
 
-						// Extrair dados específicos do formulário
-						const dados = {
-							opcao_abertura: stripHtml(
-								extractBetween(
-									htmlContent,
-									'1) Opção para abertura do chamado',
-									'</div>',
-								),
-							),
-
-							motivo_servico: stripHtml(
-								extractBetween(
-									htmlContent,
-									'2) Indique o motivo/serviço',
-									'</div>',
-								) ||
-									extractBetween(
-										htmlContent,
-										'2) Indique o setor atendente',
-										'</div>',
-									),
-							),
-
-							descricao: stripHtml(
-								extractBetween(htmlContent, '3) Descrição', '</div>')
-									.replace(/<p[^>]*>/g, '')
-									.replace(/<\/p>/g, ' '),
-							),
-
-							chamado_offline: stripHtml(
-								extractBetween(htmlContent, 'Chamado OFFLINE', '</div>') ||
-									extractBetween(htmlContent, '4) Chamado OFFLINE', '</div>'),
-							),
-
-							urgencia: stripHtml(
-								extractBetween(htmlContent, 'Urgência', '</div>'),
-							),
-
-							motivo_urgencia: stripHtml(
-								extractBetween(htmlContent, 'Motivo da urgência', '</div>') ||
-									extractBetween(
-										htmlContent,
-										'6) Motivo da urgência',
-										'</div>',
-									),
-							),
-
-							visibilidade: stripHtml(
-								extractBetween(htmlContent, 'Visibilidade', '</div>'),
-							),
-
-							forma_contato: stripHtml(
-								extractBetween(htmlContent, 'Forma de Contato', '</div>'),
-							),
-
-							telefone_ramal: stripHtml(
-								extractBetween(htmlContent, 'Telefone/Ramal', '</div>'),
-							),
-
-							observacao_contato: stripHtml(
-								extractBetween(htmlContent, 'Observação de contato', '</div>'),
-							),
-
-							anexos: stripHtml(
-								extractBetween(htmlContent, 'Arquivo(s)', '</div>'),
-							),
-						};
-
-						// LIMPEZA FINAL - remover campos vazios e aplicar decodificação final
-						Object.keys(dados).forEach((key) => {
-							if (dados[key]) {
-								// Aplicar decodificação final e limpeza
-								dados[key] = decodeHtml(dados[key])
-									.replace(/^:\s*/, '') // Removes leading colon
-									.replace(/\s+/g, ' ') // Normalize spaces
-									.trim();
-
-								// Se ficou vazio após limpeza, definir como string vazia
-								if (dados[key] === '' || dados[key] === ':') {
-									dados[key] = '';
-								}
-							} else {
-								dados[key] = '';
-							}
-						});
-
-						ticketData.dados_extraidos = dados;
+						if (descricao && descricao.length > 150) {
+							ticketData.descricao_resumo = descricao.substring(0, 150) + '...';
+						} else {
+							ticketData.descricao_resumo = descricao || '';
+						}
 					}
 
-					// Adicionar metadados
-					ticketData.processado_em = new Date().toISOString();
-
-					ticketsProcessados.push(ticketData);
+					// Adicionar ticket ao setor
+					setoresSummary[setor].tickets.push(ticketData);
 				} catch (error) {
-					// Em caso de erro, adicionar ticket básico
-					ticketsProcessados.push({
-						item_index: itemIndex,
-						ticket_index: ticketIndex,
-						ticket_id: ticket['2'] || '',
-						titulo: ticket['1'] || '',
-						erro: error.message,
-						processado_em: new Date().toISOString(),
-					});
+					console.error(
+						`Erro ao processar ticket ${ticketIndex} do item ${itemIndex}:`,
+						error.message,
+					);
 				}
-			});
-
-			// Adicionar resultado do conjunto de tickets
-			results.push({
-				json: {
-					...setorInfo,
-					tickets: ticketsProcessados,
-					processado_em: new Date().toISOString(),
-				},
 			});
 		}
 	} catch (error) {
-		// Em caso de erro no item
-		results.push({
-			json: {
-				item_index: itemIndex,
-				erro: `Erro ao processar item: ${error.message}`,
-				processado_em: new Date().toISOString(),
-			},
-		});
+		console.error(`Erro ao processar item ${itemIndex}:`, error.message);
 	}
 });
+
+// Calcular médias de tempo e ordenar dados
+Object.keys(setoresSummary).forEach((setor) => {
+	const dados = setoresSummary[setor];
+
+	// Calcular tempo médio de resolução
+	if (dados.tempo_medio_resolucao.tickets_fechados > 0) {
+		const mediaMinutos =
+			dados.tempo_medio_resolucao.total_minutos /
+			dados.tempo_medio_resolucao.tickets_fechados;
+
+		const dias = Math.floor(mediaMinutos / (60 * 24));
+		const horas = Math.floor((mediaMinutos % (60 * 24)) / 60);
+		const minutos = Math.floor(mediaMinutos % 60);
+
+		if (dias > 0) {
+			dados.tempo_medio_resolucao.media_formatada = `${dias}d ${horas}h ${minutos}m`;
+		} else if (horas > 0) {
+			dados.tempo_medio_resolucao.media_formatada = `${horas}h ${minutos}m`;
+		} else {
+			dados.tempo_medio_resolucao.media_formatada = `${minutos}m`;
+		}
+	} else {
+		dados.tempo_medio_resolucao.media_formatada = 'N/A';
+	}
+
+	// Remover campo auxiliar
+	delete dados.tempo_medio_resolucao.total_minutos;
+
+	// Ordenar tickets por data de abertura (mais recente primeiro)
+	dados.tickets.sort((a, b) => {
+		if (!a.data_abertura) return 1;
+		if (!b.data_abertura) return -1;
+		return new Date(b.data_abertura) - new Date(a.data_abertura);
+	});
+});
+
+// Ordenar setores por quantidade de tickets (decrescente)
+const setoresOrdenados = Object.keys(setoresSummary)
+	.sort(
+		(a, b) => setoresSummary[b].total_tickets - setoresSummary[a].total_tickets,
+	)
+	.reduce((result, setor) => {
+		result[setor] = setoresSummary[setor];
+		return result;
+	}, {});
+
+// Encontrar período de análise
+let ticketMaisAntigo = null;
+let ticketMaisRecente = null;
+
+Object.values(setoresOrdenados).forEach((setor) => {
+	setor.tickets.forEach((ticket) => {
+		if (ticket.data_abertura) {
+			const data = new Date(ticket.data_abertura);
+			if (!ticketMaisAntigo || data < ticketMaisAntigo) {
+				ticketMaisAntigo = data;
+			}
+			if (!ticketMaisRecente || data > ticketMaisRecente) {
+				ticketMaisRecente = data;
+			}
+		}
+	});
+});
+
+// Criar resultado final limpo e agrupado
+const results = {
+	resumo_geral: {
+		total_tickets: totalTicketsProcessados,
+		total_setores: Object.keys(setoresOrdenados).length,
+		data_processamento: new Date().toISOString(),
+		periodo_analise: {
+			ticket_mais_antigo: ticketMaisAntigo
+				? ticketMaisAntigo.toISOString().split('T')[0]
+				: '',
+			ticket_mais_recente: ticketMaisRecente
+				? ticketMaisRecente.toISOString().split('T')[0]
+				: '',
+		},
+	},
+	setores: setoresOrdenados,
+};
+
+console.log(
+	`✅ Processamento concluído: ${totalTicketsProcessados} tickets agrupados em ${
+		Object.keys(setoresOrdenados).length
+	} setores`,
+);
 
 // Retornar resultados baseado no ambiente
 if (isLocalEnvironment) {
@@ -360,10 +384,23 @@ if (isLocalEnvironment) {
 	const path = require('path');
 
 	try {
-		const outputPath = path.join(__dirname, 'analysis_result.json');
+		const outputPath = path.join(__dirname, 'glpi_report_by_sector.json');
 		fs.writeFileSync(outputPath, JSON.stringify(results, null, 2));
-		console.log(`Resultados salvos em: ${outputPath}`);
-		console.log(`Total de itens processados: ${results.length}`);
+		console.log(`📄 Relatório salvo em: ${outputPath}`);
+
+		// Mostrar estatísticas
+		console.log('\n📊 Estatísticas:');
+		console.log(`   • Total de tickets: ${results.resumo_geral.total_tickets}`);
+		console.log(`   • Total de setores: ${results.resumo_geral.total_setores}`);
+
+		console.log('\n🏢 Top 3 setores:');
+		Object.entries(results.setores)
+			.slice(0, 3)
+			.forEach(([setor, dados], index) => {
+				console.log(
+					`   ${index + 1}. ${setor}: ${dados.total_tickets} tickets`,
+				);
+			});
 	} catch (error) {
 		console.error('Erro ao salvar arquivo:', error.message);
 	}
@@ -375,7 +412,6 @@ if (isLocalEnvironment) {
 
 	return { results };
 } else {
-	// Ambiente n8n - retornar diretamente os resultados
-	console.log(`Total de itens processados para n8n: ${results.length}`);
-	return results;
+	// Ambiente n8n - retornar diretamente os resultados agrupados
+	return [{ json: results }];
 }
