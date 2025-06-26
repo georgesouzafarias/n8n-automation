@@ -1,3 +1,4 @@
+'use strict';
 /**
  * SPRINT DATA PROCESSING SCRIPT
  * =============================
@@ -51,23 +52,6 @@ function calculateEndDate(startDate, durationDays) {
 }
 
 /**
- * Function to calculate the duration of an issue in days
- * @param {string} createdAt - Issue creation date in ISO format
- * @param {string} updatedAt - Issue last update date in ISO format
- * @returns {number} Duration in days (0 if invalid dates)
- */
-function calculateIssueDuration(createdAt, updatedAt) {
-	if (!createdAt || !updatedAt) return 0;
-
-	const created = new Date(createdAt);
-	const updated = new Date(updatedAt);
-	const durationMs = updated - created;
-
-	// Converte para dias
-	return Math.floor(durationMs / (1000 * 60 * 60 * 24));
-}
-
-/**
  * Extract and process sprint information from GitHub Projects data
  * Identifies current and completed sprints with their metadata
  * @param {Array} listSprints - Array of sprint configurations from GitHub Projects
@@ -100,6 +84,7 @@ function extractSprint(listSprints) {
 			sprints.push({ ...sprint, endDate, currentSprint });
 		}
 	}
+	console.log(`${sprints.length} sprints processados com sucesso`);
 	return sprints;
 }
 
@@ -112,43 +97,57 @@ function extractSprint(listSprints) {
 function extractIssues(listIssues) {
 	let issuesFormated = [];
 
-	listIssues.forEach(function (item) {
-		// Pula itens sem conteúdo
-		if (!exists(item) || !exists(item.content)) return;
+	try {
+		listIssues.forEach(function (item) {
+			// Pula itens sem conteúdo
+			if (!exists(item) || !exists(item.content)) return;
 
-		let issueFormated = {
-			title: item.content.title,
-			number: item.content.number,
-			state: item.content.state,
-			issueType: item.content.issueType.name,
-			updatedAt: new Date(item.content.updatedAt),
-			createdAt: new Date(item.content.createdAt),
-			assignees: item.content.assignees.nodes[0]?.login,
-			labels: item.content.labels.nodes,
-			status: 'No Status',
-			priority: 'No Priority',
-			estimate: 0,
-			sprint: 'No Sprint',
-		};
+			try {
+				let issueFormated = {
+					title: item.content.title,
+					number: item.content.number,
+					state: item.content.state,
+					issueType: item.content.issueType.name,
+					updatedAt: new Date(item.content.updatedAt),
+					createdAt: new Date(item.content.createdAt),
+					assignees: item.content.assignees.nodes[0]?.login,
+					labels: item.content.labels.nodes,
+					status: 'No Status',
+					priority: 'No Priority',
+					estimate: 0,
+					sprint: 'No Sprint',
+				};
 
-		const issueDetail = item.fieldValues?.nodes;
+				const issueDetail = item.fieldValues?.nodes;
 
-		issueDetail.forEach(function (issue) {
-			{
-				if (issue.field?.name === 'Status') {
-					issueFormated.status = issue.name;
-				} else if (issue.field?.name === 'Priority') {
-					issueFormated.priority = issue.name;
-				} else if (issue.field?.name === 'Estimate') {
-					issueFormated.estimate = +issue.number;
-				} else if (issue.field?.name === 'Sprint') {
-					issueFormated.sprint = issue.title;
+				if (issueDetail) {
+					issueDetail.forEach(function (issue) {
+						if (issue.field?.name === 'Status') {
+							issueFormated.status = issue.name;
+						} else if (issue.field?.name === 'Priority') {
+							issueFormated.priority = issue.name;
+						} else if (issue.field?.name === 'Estimate') {
+							issueFormated.estimate = +issue.number;
+						} else if (issue.field?.name === 'Sprint') {
+							issueFormated.sprint = issue.title;
+						}
+					});
 				}
+
+				issuesFormated.push(issueFormated);
+			} catch (itemError) {
+				console.error(
+					`Error processing issue ${item?.content?.number || 'unknown'}: ${
+						itemError.message
+					}`,
+				);
 			}
 		});
 
-		issuesFormated.push(issueFormated);
-	});
+		console.log(`${issuesFormated.length} issues processados com sucesso`);
+	} catch (error) {
+		console.error(`Error extracting issues: ${error.message}`);
+	}
 
 	return issuesFormated;
 }
@@ -170,6 +169,7 @@ function agregateSprintIssues(listSprints, listIssues) {
 			issues: issuesRelacionadas,
 		};
 	});
+	console.log('Sprints e issues agregados com sucesso');
 
 	return sprintsAndIssues;
 }
@@ -179,6 +179,7 @@ function agregateSprintIssues(listSprints, listIssues) {
  * Checks if running locally and loads test data from data.json file
  */
 // Verifica se estamos em ambiente local
+let $input;
 if (typeof $input === 'undefined') {
 	console.log('Ambiente local detectado, carregando data.json');
 	const fs = require('fs');
@@ -197,10 +198,12 @@ if (typeof $input === 'undefined') {
  */
 try {
 	projectData = $input.item.json.data.organization.projectV2;
+	console.log('Dados do projeto extraídos com sucesso');
 	sprintsStructured = agregateSprintIssues(
 		extractSprint(projectData.fields.nodes),
 		extractIssues(projectData.items.nodes),
 	);
+	console.log('Sprints e issues agregados com sucesso');
 } catch (error) {
 	return {
 		json: {
