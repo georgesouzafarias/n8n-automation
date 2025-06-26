@@ -353,50 +353,20 @@ ticketsData.forEach((item, itemIndex) => {
 					}
 					const ticketData = {
 						id: ticket['2'] || '',
-						titulo: stripHtml(decodeHtml(ticket['1'] || '')),
-						categoria_principal: categoriaPrincipal,
 						categoria_completa: categoria,
 						status: status,
 						urgencia: urgencia,
 						operador: {
-							id: operadorId,
-							nome: operadorInfo.nome,
-							sobrenome: operadorInfo.sobrenome,
 							nomeCompleto: operadorInfo.nomeCompleto,
-							email: operadorInfo.email,
 							grupos: operadorInfo.grupos,
 						},
-						// Técnico atribuído/responsável
-						tecnico_responsavel: stripHtml(
-							decodeHtml(ticket['5'] || ticket['81'] || ''),
+						tecnico_resolveu: getOperadorNome(
+							ticket['5'] || ticket['81'] || '',
 						),
-						// Último usuário que atualizou (quem provavelmente resolveu)
-						tecnico_resolveu: stripHtml(decodeHtml(ticket['22'] || '')),
-						// Solicitante original
-						solicitante: stripHtml(decodeHtml(ticket['4'] || '')),
-						// Para compatibilidade, manter o campo antigo
-						tecnico: stripHtml(decodeHtml(ticket['5'] || ticket['81'] || '')),
 						data_abertura: ticket['15'] || '',
 						data_fechamento: ticket['16'] || null,
-						data_resolucao: ticket['17'] || null, // Data de resolução específica
 						duracao: calcularDuracao(ticket['15'], ticket['16']),
 					};
-
-					// Processar descrição se existir
-					if (ticket['21']) {
-						const htmlContent = decodeHtml(ticket['21']);
-						const descricao = stripHtml(
-							extractBetween(htmlContent, '3) Descrição', '</div>')
-								.replace(/<p[^>]*>/g, '')
-								.replace(/<\/p>/g, ' '),
-						);
-
-						if (descricao && descricao.length > 150) {
-							ticketData.descricao_resumo = descricao.substring(0, 150) + '...';
-						} else {
-							ticketData.descricao_resumo = descricao || '';
-						}
-					}
 
 					// Adicionar ticket ao setor
 					setoresSummary[setor].tickets.push(ticketData);
