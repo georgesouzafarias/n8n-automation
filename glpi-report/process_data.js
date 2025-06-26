@@ -100,14 +100,29 @@ dataToProcess.forEach((item, itemIndex) => {
 			);
 			item.data.forEach((operador) => {
 				const operadorId = operador['2']; // ID do operador
-				const sobrenome = operador['34'] || 'Sem nome';
+				const nome = operador['9'] || ''; // Nome
+				const sobrenome = operador['34'] || ''; // Sobrenome
 				const email = operador['5'] || '';
 				const grupos = operador['13'] || '';
+
+				// Construir nome completo
+				let nomeCompleto = '';
+				if (nome && sobrenome) {
+					nomeCompleto = `${nome} ${sobrenome}`;
+				} else if (nome) {
+					nomeCompleto = nome;
+				} else if (sobrenome) {
+					nomeCompleto = sobrenome;
+				} else {
+					nomeCompleto = 'Sem nome';
+				}
 
 				if (operadorId) {
 					operadoresMap.set(String(operadorId), {
 						id: operadorId,
+						nome: nome,
 						sobrenome: sobrenome,
+						nomeCompleto: nomeCompleto,
 						email: email,
 						grupos: Array.isArray(grupos) ? grupos : [grupos],
 					});
@@ -132,7 +147,7 @@ function getOperadorNome(operadorId) {
 
 	const operador = operadoresMap.get(String(operadorId));
 	if (operador) {
-		return operador.sobrenome;
+		return operador.nomeCompleto;
 	}
 	return `Operador ${operadorId}`;
 }
@@ -142,6 +157,7 @@ function getOperadorInfo(operadorId) {
 	if (!operadorId)
 		return {
 			nome: 'Não atribuído',
+			nomeCompleto: 'Não atribuído',
 			email: '',
 			grupos: [],
 		};
@@ -149,13 +165,17 @@ function getOperadorInfo(operadorId) {
 	const operador = operadoresMap.get(String(operadorId));
 	if (operador) {
 		return {
-			nome: operador.sobrenome,
+			nome: operador.nome,
+			sobrenome: operador.sobrenome,
+			nomeCompleto: operador.nomeCompleto,
 			email: operador.email,
 			grupos: operador.grupos,
 		};
 	}
 	return {
 		nome: `Operador ${operadorId}`,
+		sobrenome: '',
+		nomeCompleto: `Operador ${operadorId}`,
 		email: '',
 		grupos: [],
 	};
@@ -317,7 +337,7 @@ ticketsData.forEach((item, itemIndex) => {
 						(setoresSummary[setor].tickets_por_urgencia[urgencia] || 0) + 1;
 
 					// Contar por operador
-					const nomeOperador = operadorInfo.nome;
+					const nomeOperador = operadorInfo.nomeCompleto;
 					setoresSummary[setor].tickets_por_operador[nomeOperador] =
 						(setoresSummary[setor].tickets_por_operador[nomeOperador] || 0) + 1;
 
@@ -331,7 +351,6 @@ ticketsData.forEach((item, itemIndex) => {
 							diffMinutos;
 						setoresSummary[setor].tempo_medio_resolucao.tickets_fechados++;
 					}
-
 					const ticketData = {
 						id: ticket['2'] || '',
 						titulo: stripHtml(decodeHtml(ticket['1'] || '')),
@@ -342,12 +361,24 @@ ticketsData.forEach((item, itemIndex) => {
 						operador: {
 							id: operadorId,
 							nome: operadorInfo.nome,
+							sobrenome: operadorInfo.sobrenome,
+							nomeCompleto: operadorInfo.nomeCompleto,
 							email: operadorInfo.email,
 							grupos: operadorInfo.grupos,
 						},
+						// Técnico atribuído/responsável
+						tecnico_responsavel: stripHtml(
+							decodeHtml(ticket['5'] || ticket['81'] || ''),
+						),
+						// Último usuário que atualizou (quem provavelmente resolveu)
+						tecnico_resolveu: stripHtml(decodeHtml(ticket['22'] || '')),
+						// Solicitante original
+						solicitante: stripHtml(decodeHtml(ticket['4'] || '')),
+						// Para compatibilidade, manter o campo antigo
 						tecnico: stripHtml(decodeHtml(ticket['5'] || ticket['81'] || '')),
 						data_abertura: ticket['15'] || '',
 						data_fechamento: ticket['16'] || null,
+						data_resolucao: ticket['17'] || null, // Data de resolução específica
 						duracao: calcularDuracao(ticket['15'], ticket['16']),
 					};
 
