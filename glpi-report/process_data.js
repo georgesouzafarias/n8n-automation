@@ -84,6 +84,83 @@ if (Array.isArray(inputData)) {
 
 console.log(`Processando ${dataToProcess.length} item(s) de dados`);
 
+// Criar mapeamento de operadores (primeira fase do processamento)
+const operadoresMap = new Map();
+let ticketsData = [];
+
+// Separar operadores dos tickets
+dataToProcess.forEach((item, itemIndex) => {
+	if (item.data && Array.isArray(item.data) && item.data.length > 0) {
+		// Verificar se é seção de operadores (tem campo '34' - sobrenome)
+		const primeiroItem = item.data[0];
+		if (primeiroItem['34']) {
+			// É seção de operadores
+			console.log(
+				`Carregando ${item.data.length} operadores da seção ${itemIndex}`,
+			);
+			item.data.forEach((operador) => {
+				const operadorId = operador['2']; // ID do operador
+				const sobrenome = operador['34'] || 'Sem nome';
+				const email = operador['5'] || '';
+				const grupos = operador['13'] || '';
+
+				if (operadorId) {
+					operadoresMap.set(String(operadorId), {
+						id: operadorId,
+						sobrenome: sobrenome,
+						email: email,
+						grupos: Array.isArray(grupos) ? grupos : [grupos],
+					});
+				}
+			});
+		} else if (primeiroItem['1'] && primeiroItem['15']) {
+			// É seção de tickets (tem campo '1' - título e '15' - data abertura)
+			console.log(
+				`Encontrados ${item.data.length} tickets na seção ${itemIndex}`,
+			);
+			ticketsData.push(item);
+		}
+	}
+});
+
+console.log(`✅ Carregados ${operadoresMap.size} operadores`);
+console.log(`✅ Encontradas ${ticketsData.length} seções de tickets`);
+
+// Função para obter nome do operador
+function getOperadorNome(operadorId) {
+	if (!operadorId) return 'Não atribuído';
+
+	const operador = operadoresMap.get(String(operadorId));
+	if (operador) {
+		return operador.sobrenome;
+	}
+	return `Operador ${operadorId}`;
+}
+
+// Função para obter informações completas do operador
+function getOperadorInfo(operadorId) {
+	if (!operadorId)
+		return {
+			nome: 'Não atribuído',
+			email: '',
+			grupos: [],
+		};
+
+	const operador = operadoresMap.get(String(operadorId));
+	if (operador) {
+		return {
+			nome: operador.sobrenome,
+			email: operador.email,
+			grupos: operador.grupos,
+		};
+	}
+	return {
+		nome: `Operador ${operadorId}`,
+		email: '',
+		grupos: [],
+	};
+}
+
 // Estrutura para agrupar por setor
 const setoresSummary = {};
 let totalTicketsProcessados = 0;
@@ -126,7 +203,7 @@ function calcularDuracao(dataAbertura, dataFechamento) {
 }
 
 // Processar cada item do array data
-dataToProcess.forEach((item, itemIndex) => {
+ticketsData.forEach((item, itemIndex) => {
 	try {
 		// Se o item contém tickets para processar
 		if (
@@ -184,6 +261,10 @@ dataToProcess.forEach((item, itemIndex) => {
 					const categoria = stripHtml(decodeHtml(ticket['7'] || ''));
 					const status = getStatusText(ticket['12']);
 
+					// Extrair informações do operador
+					const operadorId = ticket['5'];
+					const operadorInfo = getOperadorInfo(operadorId);
+
 					// Extrair urgência de forma mais robusta
 					let urgencia = 'Não informado';
 					if (ticket['21']) {
@@ -206,6 +287,7 @@ dataToProcess.forEach((item, itemIndex) => {
 							tickets_por_status: {},
 							tickets_por_categoria: {},
 							tickets_por_urgencia: {},
+							tickets_por_operador: {},
 							tempo_medio_resolucao: {
 								total_minutos: 0,
 								tickets_fechados: 0,
@@ -234,6 +316,11 @@ dataToProcess.forEach((item, itemIndex) => {
 					setoresSummary[setor].tickets_por_urgencia[urgencia] =
 						(setoresSummary[setor].tickets_por_urgencia[urgencia] || 0) + 1;
 
+					// Contar por operador
+					const nomeOperador = operadorInfo.nome;
+					setoresSummary[setor].tickets_por_operador[nomeOperador] =
+						(setoresSummary[setor].tickets_por_operador[nomeOperador] || 0) + 1;
+
 					// Calcular tempo de resolução para tickets fechados
 					if (status === 'Fechado' && ticket['15'] && ticket['16']) {
 						const abertura = new Date(ticket['15']);
@@ -252,6 +339,12 @@ dataToProcess.forEach((item, itemIndex) => {
 						categoria_completa: categoria,
 						status: status,
 						urgencia: urgencia,
+						operador: {
+							id: operadorId,
+							nome: operadorInfo.nome,
+							email: operadorInfo.email,
+							grupos: operadorInfo.grupos,
+						},
 						tecnico: stripHtml(decodeHtml(ticket['5'] || ticket['81'] || '')),
 						data_abertura: ticket['15'] || '',
 						data_fechamento: ticket['16'] || null,
@@ -317,6 +410,15 @@ Object.keys(setoresSummary).forEach((setor) => {
 	// Remover campo auxiliar
 	delete dados.tempo_medio_resolucao.total_minutos;
 
+	// Ordenar operadores por quantidade de tickets (decrescente)
+	const operadoresOrdenados = Object.entries(dados.tickets_por_operador)
+		.sort(([, a], [, b]) => b - a)
+		.reduce((result, [operador, count]) => {
+			result[operador] = count;
+			return result;
+		}, {});
+	dados.tickets_por_operador = operadoresOrdenados;
+
 	// Ordenar tickets por data de abertura (mais recente primeiro)
 	dados.tickets.sort((a, b) => {
 		if (!a.data_abertura) return 1;
@@ -334,6 +436,31 @@ const setoresOrdenados = Object.keys(setoresSummary)
 		result[setor] = setoresSummary[setor];
 		return result;
 	}, {});
+
+// Criar resumo geral de operadores
+const operadoresSummary = {};
+Object.values(setoresOrdenados).forEach((setor) => {
+	Object.entries(setor.tickets_por_operador).forEach(([operador, count]) => {
+		if (!operadoresSummary[operador]) {
+			operadoresSummary[operador] = {
+				total_tickets: 0,
+				setores_atendidos: new Set(),
+			};
+		}
+		operadoresSummary[operador].total_tickets += count;
+		operadoresSummary[operador].setores_atendidos.add(setor.setor);
+	});
+});
+
+// Converter Set para Array e ordenar operadores
+const operadoresGeral = Object.entries(operadoresSummary)
+	.map(([nome, dados]) => ({
+		nome,
+		total_tickets: dados.total_tickets,
+		setores_atendidos: Array.from(dados.setores_atendidos).sort(),
+		quantidade_setores: dados.setores_atendidos.size,
+	}))
+	.sort((a, b) => b.total_tickets - a.total_tickets);
 
 // Encontrar período de análise
 let ticketMaisAntigo = null;
@@ -358,6 +485,7 @@ const results = {
 	resumo_geral: {
 		total_tickets: totalTicketsProcessados,
 		total_setores: Object.keys(setoresOrdenados).length,
+		total_operadores: operadoresGeral.length,
 		data_processamento: new Date().toISOString(),
 		periodo_analise: {
 			ticket_mais_antigo: ticketMaisAntigo
@@ -368,13 +496,14 @@ const results = {
 				: '',
 		},
 	},
+	operadores_resumo: operadoresGeral,
 	setores: setoresOrdenados,
 };
 
 console.log(
 	`✅ Processamento concluído: ${totalTicketsProcessados} tickets agrupados em ${
 		Object.keys(setoresOrdenados).length
-	} setores`,
+	} setores por ${operadoresGeral.length} operadores`,
 );
 
 // Retornar resultados baseado no ambiente
@@ -392,6 +521,9 @@ if (isLocalEnvironment) {
 		console.log('\n📊 Estatísticas:');
 		console.log(`   • Total de tickets: ${results.resumo_geral.total_tickets}`);
 		console.log(`   • Total de setores: ${results.resumo_geral.total_setores}`);
+		console.log(
+			`   • Total de operadores: ${results.resumo_geral.total_operadores}`,
+		);
 
 		console.log('\n🏢 Top 3 setores:');
 		Object.entries(results.setores)
@@ -401,6 +533,15 @@ if (isLocalEnvironment) {
 					`   ${index + 1}. ${setor}: ${dados.total_tickets} tickets`,
 				);
 			});
+
+		console.log('\n👨‍💻 Top 3 operadores:');
+		results.operadores_resumo.slice(0, 3).forEach((operador, index) => {
+			console.log(
+				`   ${index + 1}. ${operador.nome}: ${
+					operador.total_tickets
+				} tickets em ${operador.quantidade_setores} setor(es)`,
+			);
+		});
 	} catch (error) {
 		console.error('Erro ao salvar arquivo:', error.message);
 	}
