@@ -1,5 +1,5 @@
 // Gerador de Relatório HTML para Tickets GLPI
-// Processa data3.json e gera HTML para envio por email
+// Processa user_tickets_report.json e gera HTML para envio por email
 
 let inputData;
 let isLocalEnvironment = false;
@@ -20,19 +20,19 @@ if (typeof $input !== 'undefined' && $input && $input.all) {
 	inputData = $input.item.json;
 } else {
 	// Ambiente local
-	console.log('Ambiente local detectado, carregando data3.json');
+	console.log('Ambiente local detectado, carregando user_tickets_report.json');
 	isLocalEnvironment = true;
 	const fs = require('fs');
 	const path = require('path');
 
 	try {
-		const dataPath = path.join(__dirname, 'data3.json');
+		const dataPath = path.join(__dirname, 'user_tickets_report.json');
 		const localData = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
 		inputData = localData;
-		console.log('Arquivo data3.json carregado com sucesso');
+		console.log('Arquivo user_tickets_report.json carregado com sucesso');
 	} catch (error) {
-		console.error('Erro ao carregar data3.json:', error.message);
-		throw new Error('Não foi possível carregar os dados processados');
+		console.error('Erro ao carregar user_tickets_report.json:', error.message);
+		throw new Error('Não foi possível carregar os dados do usuário');
 	}
 }
 

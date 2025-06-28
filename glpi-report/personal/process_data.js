@@ -1,5 +1,5 @@
 // Extrator de tickets GLPI para usuário específico
-// Baseado nos dados do data2.json - foco em acompanhamento individual de chamados
+// Baseado nos dados do data.json - foco em acompanhamento individual de chamados
 
 let inputData;
 let isLocalEnvironment = false;
@@ -20,18 +20,18 @@ if (typeof $input !== 'undefined' && $input && $input.all) {
 	inputData = $input.item.json;
 } else {
 	// Ambiente local
-	console.log('Ambiente local detectado, carregando data2.json');
+	console.log('Ambiente local detectado, carregando data.json');
 	isLocalEnvironment = true;
 	const fs = require('fs');
 	const path = require('path');
 
 	try {
-		const dataPath = path.join(__dirname, 'data2.json');
+		const dataPath = path.join(__dirname, 'data.json');
 		const localData = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
 		inputData = localData;
-		console.log('Arquivo data2.json carregado com sucesso');
+		console.log('Arquivo data.json carregado com sucesso');
 	} catch (error) {
-		console.error('Erro ao carregar data2.json:', error.message);
+		console.error('Erro ao carregar data.json:', error.message);
 		throw new Error('Não foi possível carregar os dados do usuário');
 	}
 }

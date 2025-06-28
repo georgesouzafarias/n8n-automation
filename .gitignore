@@ -8,4 +8,4 @@ data.json
 .DS_Store
 
 #Local Output
-analysis_result.json
+*.json
