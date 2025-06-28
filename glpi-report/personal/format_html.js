@@ -2,63 +2,129 @@
 // Processa user_tickets_report.json e gera HTML para envio por email
 
 let inputData;
+let operadorInfo = null;
 let isLocalEnvironment = false;
 
-// Detectar ambiente e carregar dados
-if (typeof $input !== 'undefined' && $input && $input.all) {
-	// Ambiente n8n
-	console.log('Ambiente n8n detectado');
-	inputData = $input.first().json;
-} else if (
-	typeof $input !== 'undefined' &&
-	$input &&
-	$input.item &&
-	$input.item.json
-) {
-	// Ambiente n8n com formato alternativo
-	console.log('Ambiente n8n detectado (formato alternativo)');
-	inputData = $input.item.json;
-} else {
-	// Ambiente local
-	console.log('Ambiente local detectado, carregando user_tickets_report.json');
-	isLocalEnvironment = true;
-	const fs = require('fs');
-	const path = require('path');
+// ============================================================================
+// CONFIGURAÇÕES E CONSTANTES
+// ============================================================================
 
-	try {
-		const dataPath = path.join(__dirname, 'user_tickets_report.json');
-		const localData = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
-		inputData = localData;
-		console.log('Arquivo user_tickets_report.json carregado com sucesso');
-	} catch (error) {
-		console.error('Erro ao carregar user_tickets_report.json:', error.message);
-		throw new Error('Não foi possível carregar os dados do usuário');
+const CONFIG = {
+	colors: {
+		status: {
+			Novo: { color: '#007bff', bg: '#e3f2fd' },
+			'Em andamento': { color: '#ffc107', bg: '#fff8e1' },
+			Planejado: { color: '#6f42c1', bg: '#f3e5f5' },
+			Pendente: { color: '#fd7e14', bg: '#fff3e0' },
+			Resolvido: { color: '#28a745', bg: '#e8f5e9' },
+			Fechado: { color: '#6c757d', bg: '#f5f5f5' },
+		},
+		prioridade: {
+			Alta: { bg: '#ffebee', color: '#c62828', icon: '🔴', border: '#dc3545' },
+			'Média-Alta': {
+				bg: '#fff3e0',
+				color: '#ef6c00',
+				icon: '🟡',
+				border: '#fd7e14',
+			},
+			Normal: {
+				bg: '#e8f5e9',
+				color: '#2e7d32',
+				icon: '🟢',
+				border: '#28a745',
+			},
+			Baixa: { bg: '#f5f5f5', color: '#616161', icon: '⚪', border: '#6c757d' },
+		},
+	},
+	limits: {
+		titleTruncate: 100,
+		descriptionTruncate: 200,
+		defaultTruncate: 150,
+	},
+};
+
+// ============================================================================
+// FUNÇÕES DE CARREGAMENTO DE DADOS
+// ============================================================================
+
+function carregarDadosOperador() {
+	// Carregar dados do operador do search-user
+	if (typeof $ !== 'undefined' && typeof $('search-user') !== 'undefined') {
+		try {
+			const userData = $('search-user').first().json.data[0];
+			if (userData) {
+				console.log('📋 Dados do operador carregados do search-user');
+				return {
+					titulo_eleitor: userData['1'], // 173604200205 - Titulo de Eleitor
+					id_glpi: userData['2'], // 7 - ID no GLPI
+					nome: userData['9'], // Jackson Cardoso - Nome
+					sobrenome: userData['34'], // Souza - Last Name
+					email: userData['5'], // jackson.cardoso@tre-mg.jus.br - Email
+					nome_completo: `${userData['9']} ${userData['34']}`, // Nome completo combinado
+				};
+			}
+		} catch (error) {
+			console.warn(
+				'⚠️  Não foi possível carregar dados do operador:',
+				error.message,
+			);
+		}
+	}
+
+	// Fallback para ambiente local ou se não conseguir acessar
+	console.log('📋 Usando dados padrão do operador (ambiente local)');
+	return {
+		titulo_eleitor: 'N/A',
+		id_glpi: 'N/A',
+		nome: 'Operador',
+		sobrenome: 'Sistema',
+		email: 'sistema@exemplo.com',
+		nome_completo: 'Operador Sistema',
+	};
+}
+
+function carregarDados() {
+	// Detectar ambiente e carregar dados
+	if (typeof $input !== 'undefined' && $input && $input.all) {
+		// Ambiente n8n
+		console.log('Ambiente n8n detectado');
+		return $input.first().json;
+	} else if (
+		typeof $input !== 'undefined' &&
+		$input &&
+		$input.item &&
+		$input.item.json
+	) {
+		// Ambiente n8n com formato alternativo
+		console.log('Ambiente n8n detectado (formato alternativo)');
+		return $input.item.json;
+	} else {
+		// Ambiente local
+		console.log(
+			'Ambiente local detectado, carregando user_tickets_report.json',
+		);
+		isLocalEnvironment = true;
+		const fs = require('fs');
+		const path = require('path');
+
+		try {
+			const dataPath = path.join(__dirname, 'user_tickets_report.json');
+			const localData = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
+			console.log('Arquivo user_tickets_report.json carregado com sucesso');
+			return localData;
+		} catch (error) {
+			console.error(
+				'Erro ao carregar user_tickets_report.json:',
+				error.message,
+			);
+			throw new Error('Não foi possível carregar os dados do usuário');
+		}
 	}
 }
 
-// Verificar se temos dados para processar
-if (!inputData) {
-	console.error('Nenhum dado disponível para processamento');
-	return isLocalEnvironment
-		? { html: '<p>Erro: Nenhum dado disponível</p>' }
-		: [{ json: { html: '<p>Erro: Nenhum dado disponível</p>' } }];
-}
-
-// Garantir que seja um array e pegar o primeiro item (dados processados)
-const dados = Array.isArray(inputData) ? inputData[0] : inputData;
-const {
-	resumo_usuario,
-	estatisticas,
-	acoes_pendentes,
-	tickets,
-	automacao_sugerida,
-} = dados;
-
-console.log(
-	`Gerando relatório HTML para ${resumo_usuario.total_tickets} ticket(s)`,
-);
-
-// Funções utilitárias
+// ============================================================================
+// FUNÇÕES UTILITÁRIAS
+// ============================================================================
 function formatarData(dataISO) {
 	if (!dataISO) return 'N/A';
 	const data = new Date(dataISO);
@@ -83,24 +149,9 @@ function formatarDataHora(dataISO) {
 }
 
 function getStatusBadge(status, prioridade) {
-	const badges = {
-		Novo: { color: '#007bff', bg: '#e3f2fd' },
-		'Em andamento': { color: '#ffc107', bg: '#fff8e1' },
-		Planejado: { color: '#6f42c1', bg: '#f3e5f5' },
-		Pendente: { color: '#fd7e14', bg: '#fff3e0' },
-		Resolvido: { color: '#28a745', bg: '#e8f5e9' },
-		Fechado: { color: '#6c757d', bg: '#f5f5f5' },
-	};
-
-	const prioridadeBorder = {
-		Alta: '#dc3545',
-		'Média-Alta': '#fd7e14',
-		Normal: '#28a745',
-		Baixa: '#6c757d',
-	};
-
-	const statusStyle = badges[status] || badges['Novo'];
-	const borderColor = prioridadeBorder[prioridade] || '#28a745';
+	const statusStyle =
+		CONFIG.colors.status[status] || CONFIG.colors.status['Novo'];
+	const borderColor = CONFIG.colors.prioridade[prioridade]?.border || '#28a745';
 
 	return `
 		<span style="
@@ -119,14 +170,8 @@ function getStatusBadge(status, prioridade) {
 }
 
 function getPrioridadeBadge(prioridade) {
-	const cores = {
-		Alta: { bg: '#ffebee', color: '#c62828', icon: '🔴' },
-		'Média-Alta': { bg: '#fff3e0', color: '#ef6c00', icon: '🟡' },
-		Normal: { bg: '#e8f5e9', color: '#2e7d32', icon: '🟢' },
-		Baixa: { bg: '#f5f5f5', color: '#616161', icon: '⚪' },
-	};
-
-	const estilo = cores[prioridade] || cores['Normal'];
+	const estilo =
+		CONFIG.colors.prioridade[prioridade] || CONFIG.colors.prioridade['Normal'];
 
 	return `
 		<span style="
@@ -142,41 +187,311 @@ function getPrioridadeBadge(prioridade) {
 	`;
 }
 
-function truncarTexto(texto, limite = 150) {
+function getOperadorBadge(operador) {
+	if (!operador || operador === 'Não atribuído') {
+		return `
+			<span style="
+				background-color: #f8f9fa;
+				color: #6c757d;
+				padding: 2px 6px;
+				border-radius: 8px;
+				font-size: 11px;
+				font-weight: 500;
+				border: 1px dashed #dee2e6;
+			">
+				👤 Não atribuído
+			</span>
+		`;
+	}
+
+	return `
+		<span style="
+			background-color: #e3f2fd;
+			color: #1976d2;
+			padding: 2px 6px;
+			border-radius: 8px;
+			font-size: 11px;
+			font-weight: 500;
+		">
+			👨‍💻 ${operador}
+		</span>
+	`;
+}
+
+function truncarTexto(texto, limite = CONFIG.limits.defaultTruncate) {
 	if (!texto) return '';
 	return texto.length > limite ? texto.substring(0, limite) + '...' : texto;
 }
 
-// Gerar estatísticas resumidas
-const totalTicketsAbertos = resumo_usuario.tickets_abertos;
-const totalTicketsFechados = resumo_usuario.tickets_fechados;
-const ticketsRequeremAcao = resumo_usuario.tickets_requerem_acao;
+// ============================================================================
+// FUNÇÕES DE GERAÇÃO DE COMPONENTES HTML
+// ============================================================================
 
-// Separar tickets por urgência/prioridade
-const ticketsUrgentes = tickets.filter(
-	(t) => t.prioridade_calculada === 'Alta' || t.urgencia === 'Alta',
-);
-const ticketsNormais = tickets.filter(
-	(t) =>
-		t.prioridade_calculada === 'Normal' ||
-		t.prioridade_calculada === 'Média-Alta',
-);
-const ticketsAbertos = tickets.filter(
-	(t) => t.status !== 'Fechado' && t.status !== 'Resolvido',
-);
+function gerarCabecalho(dataRelatorio) {
+	// Usar informações do operador logado
+	const nomeOperador = operadorInfo?.nome_completo || 'Operador';
+	const emailOperador = operadorInfo?.email || '';
 
-// Data de hoje formatada
-const dataRelatorio = formatarData(new Date().toISOString());
+	return `
+        <!-- Cabeçalho -->
+        <div class="header">
+            <h1>📋 Relatório Diário de Tickets - ${nomeOperador}</h1>
+            <p>${dataRelatorio}</p>
+            ${
+							emailOperador
+								? `<p style="font-size: 14px; opacity: 0.8;">📧 ${emailOperador}</p>`
+								: ''
+						}
+        </div>
+	`;
+}
 
-// Construir HTML do relatório
-const htmlContent = `
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Relatório Diário de Tickets GLPI</title>
-    <style>
+function gerarResumoGeral(
+	totalTicketsAbertos,
+	totalTicketsFechados,
+	ticketsRequeremAcao,
+) {
+	return `
+        <!-- Resumo Geral -->
+        <div class="summary">
+            <div class="summary-item abertos">
+                <div class="summary-number">${totalTicketsAbertos}</div>
+                <div class="summary-label">Em Aberto</div>
+            </div>
+            <div class="summary-item fechados">
+                <div class="summary-number">${totalTicketsFechados}</div>
+                <div class="summary-label">Fechados</div>
+            </div>
+            <div class="summary-item acao">
+                <div class="summary-number">${ticketsRequeremAcao}</div>
+                <div class="summary-label">Requer Ação</div>
+            </div>
+        </div>
+	`;
+}
+
+function gerarAlertaAcao(ticketsRequeremAcao) {
+	if (ticketsRequeremAcao <= 0) return '';
+
+	const nomeOperador = operadorInfo?.nome || 'Você';
+
+	return `
+        <!-- Alertas -->
+        <div class="section">
+            <div class="alert warning">
+                <strong>⚠️ Atenção ${nomeOperador}!</strong> Você possui ${ticketsRequeremAcao} ticket(s) que requerem ação imediata.
+            </div>
+        </div>
+	`;
+}
+
+function gerarDetalhesTicket(ticket, incluirSetor = false) {
+	// Priorizar informações do operador real que atendeu o ticket
+	const operadorNome =
+		ticket.atendimento?.responsavel_real?.nome ||
+		ticket.atendimento?.tecnico_atribuido?.nome ||
+		ticket.operador?.nome ||
+		operadorInfo?.nome_completo ||
+		'Não atribuído';
+
+	return `
+		<div class="ticket-details">
+			<div class="detail-item">
+				<div class="detail-label">Categoria</div>
+				<div class="detail-value">${ticket.categoria_principal}</div>
+			</div>
+			${
+				incluirSetor
+					? `
+			<div class="detail-item">
+				<div class="detail-label">Setor</div>
+				<div class="detail-value">${ticket.setor || 'N/A'}</div>
+			</div>
+			`
+					: ''
+			}
+			<div class="detail-item">
+				<div class="detail-label">Operador Responsável</div>
+				<div class="detail-value">${operadorNome}</div>
+			</div>
+			<div class="detail-item">
+				<div class="detail-label">Urgência</div>
+				<div class="detail-value">${ticket.urgencia}</div>
+			</div>
+			<div class="detail-item">
+				<div class="detail-label">Abertura</div>
+				<div class="detail-value">${formatarDataHora(ticket.data_abertura)}</div>
+			</div>
+			<div class="detail-item">
+				<div class="detail-label">Contato</div>
+				<div class="detail-value">${
+					ticket.dados_completos?.forma_contato || 'N/A'
+				}</div>
+			</div>
+			${
+				incluirSetor
+					? `
+			<div class="detail-item">
+				<div class="detail-label">Visibilidade</div>
+				<div class="detail-value">${ticket.dados_completos?.visibilidade || 'N/A'}</div>
+			</div>
+			`
+					: ''
+			}
+		</div>
+	`;
+}
+
+function gerarTicketCard(ticket, incluirSetor = false) {
+	// Usar as informações do operador de forma consistente
+	const operadorNome =
+		ticket.atendimento?.responsavel_real?.nome ||
+		ticket.atendimento?.tecnico_atribuido?.nome ||
+		ticket.operador?.nome ||
+		operadorInfo?.nome_completo ||
+		'Não atribuído';
+
+	return `
+		<div class="ticket-card">
+			<div class="ticket-header">
+				<div class="ticket-id">#${ticket.id}</div>
+				<div class="ticket-title">${truncarTexto(
+					ticket.titulo,
+					CONFIG.limits.titleTruncate,
+				)}</div>
+				<div class="ticket-meta">
+					${getStatusBadge(ticket.status, ticket.prioridade_calculada)}
+					${getPrioridadeBadge(ticket.prioridade_calculada)}
+					${getOperadorBadge(operadorNome)}
+					<span style="font-size: 12px; color: #6c757d;">
+						🕐 ${ticket.tempo_decorrido}
+					</span>
+				</div>
+			</div>
+			<div class="ticket-body">
+				<div class="ticket-description">
+					${truncarTexto(
+						ticket.dados_completos?.descricao?.replace(/\n/g, '<br>') ||
+							'Sem descrição',
+						CONFIG.limits.descriptionTruncate,
+					)}
+				</div>
+				${gerarDetalhesTicket(ticket, incluirSetor)}
+			</div>
+		</div>
+	`;
+}
+
+function gerarSecaoTicketsUrgentes(ticketsUrgentes) {
+	if (ticketsUrgentes.length === 0) return '';
+
+	return `
+        <!-- Tickets Urgentes -->
+        <div class="section">
+            <h2>🔴 Tickets Urgentes</h2>
+            ${ticketsUrgentes
+							.map((ticket) => gerarTicketCard(ticket, false))
+							.join('')}
+        </div>
+	`;
+}
+
+function gerarSecaoTicketsAbertos(ticketsAbertos) {
+	const nomeOperador = operadorInfo?.nome || 'Você';
+
+	return `
+        <!-- Todos os Tickets em Aberto -->
+        <div class="section">
+            <h2>📝 Tickets em Aberto (${ticketsAbertos.length})</h2>
+            ${
+							ticketsAbertos.length > 0
+								? ticketsAbertos
+										.map((ticket) => gerarTicketCard(ticket, true))
+										.join('')
+								: `
+                <div class="no-tickets">
+                    <div style="font-size: 48px; margin-bottom: 15px;">🎉</div>
+                    <p>Parabéns ${nomeOperador}! Você não possui tickets em aberto no momento.</p>
+                </div>
+            `
+						}
+        </div>
+	`;
+}
+
+function gerarSecaoEstatisticas(estatisticas, resumo_usuario) {
+	return `
+        <!-- Estatísticas -->
+        <div class="section">
+            <h2>📊 Estatísticas</h2>
+            <div class="ticket-details">
+                <div class="detail-item">
+                    <div class="detail-label">Por Status</div>
+                    <div class="detail-value">
+                        ${Object.entries(estatisticas.por_status)
+													.map(([status, count]) => `${status}: ${count}`)
+													.join(' • ')}
+                    </div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Por Urgência</div>
+                    <div class="detail-value">
+                        ${Object.entries(estatisticas.por_urgencia)
+													.map(([urgencia, count]) => `${urgencia}: ${count}`)
+													.join(' • ')}
+                    </div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Período</div>
+                    <div class="detail-value">
+                        ${formatarData(
+													resumo_usuario.periodo_analise.ticket_mais_antigo,
+												)} -
+                        ${formatarData(
+													resumo_usuario.periodo_analise.ticket_mais_recente,
+												)}
+                    </div>
+                </div>
+                ${
+									operadorInfo?.id_glpi
+										? `
+                <div class="detail-item">
+                    <div class="detail-label">ID Operador GLPI</div>
+                    <div class="detail-value">#${operadorInfo.id_glpi}</div>
+                </div>
+                `
+										: ''
+								}
+            </div>
+        </div>
+	`;
+}
+
+function gerarRodape(resumo_usuario) {
+	const nomeOperador = operadorInfo?.nome_completo || 'Operador';
+
+	return `
+        <!-- Rodapé -->
+        <div class="footer">
+            <p>📧 Relatório gerado automaticamente para <strong>${nomeOperador}</strong> em ${formatarDataHora(
+		resumo_usuario.data_processamento,
+	)}</p>
+            <p>🔄 Próximo relatório será enviado amanhã no mesmo horário</p>
+            ${
+							operadorInfo?.titulo_eleitor
+								? `<p style="font-size: 11px; color: #9e9e9e;">ID Funcional: ${operadorInfo.titulo_eleitor}</p>`
+								: ''
+						}
+        </div>
+	`;
+}
+
+// ============================================================================
+// FUNÇÕES DE GERAÇÃO DE CSS E ESTRUTURA
+// ============================================================================
+
+function gerarCSS() {
+	return `
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             line-height: 1.6;
@@ -348,304 +663,223 @@ const htmlContent = `
                 grid-template-columns: 1fr;
             }
         }
+	`;
+}
+
+// ============================================================================
+// FUNÇÃO PRINCIPAL DE PROCESSAMENTO
+// ============================================================================
+
+function processarDados() {
+	// Carregar dados
+	const inputData = carregarDados();
+
+	// Verificar se temos dados para processar
+	if (!inputData) {
+		console.error('Nenhum dado disponível para processamento');
+		return isLocalEnvironment
+			? { html: '<p>Erro: Nenhum dado disponível</p>' }
+			: [{ json: { html: '<p>Erro: Nenhum dado disponível</p>' } }];
+	}
+
+	// Garantir que seja um array e pegar o primeiro item (dados processados)
+	const dados = Array.isArray(inputData) ? inputData[0] : inputData;
+	const {
+		resumo_usuario,
+		estatisticas,
+		acoes_pendentes,
+		tickets,
+		automacao_sugerida,
+	} = dados;
+
+	console.log(
+		`Gerando relatório HTML para ${resumo_usuario.total_tickets} ticket(s)`,
+	);
+
+	return dados;
+}
+
+function gerarRelatorioHTML(dados) {
+	const { resumo_usuario, estatisticas, tickets } = dados;
+
+	// Gerar estatísticas resumidas
+	const totalTicketsAbertos = resumo_usuario.tickets_abertos;
+	const totalTicketsFechados = resumo_usuario.tickets_fechados;
+	const ticketsRequeremAcao = resumo_usuario.tickets_requerem_acao;
+
+	// Separar tickets por urgência/prioridade
+	const ticketsUrgentes = tickets.filter(
+		(t) => t.prioridade_calculada === 'Alta' || t.urgencia === 'Alta',
+	);
+	const ticketsAbertos = tickets.filter(
+		(t) => t.status !== 'Fechado' && t.status !== 'Resolvido',
+	);
+
+	// Data de hoje formatada
+	const dataRelatorio = formatarData(new Date().toISOString());
+
+	// Construir HTML do relatório
+	const htmlContent = `
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Relatório Diário de Tickets GLPI</title>
+    <style>
+        ${gerarCSS()}
     </style>
 </head>
 <body>
     <div class="container">
-        <!-- Cabeçalho -->
-        <div class="header">
-            <h1>📋 Relatório Diário de Tickets</h1>
-            <p>${dataRelatorio}</p>
-        </div>
-
-        <!-- Resumo Geral -->
-        <div class="summary">
-            <div class="summary-item abertos">
-                <div class="summary-number">${totalTicketsAbertos}</div>
-                <div class="summary-label">Em Aberto</div>
-            </div>
-            <div class="summary-item fechados">
-                <div class="summary-number">${totalTicketsFechados}</div>
-                <div class="summary-label">Fechados</div>
-            </div>
-            <div class="summary-item acao">
-                <div class="summary-number">${ticketsRequeremAcao}</div>
-                <div class="summary-label">Requer Ação</div>
-            </div>
-        </div>
-
-        ${
-					ticketsRequeremAcao > 0
-						? `
-        <!-- Alertas -->
-        <div class="section">
-            <div class="alert warning">
-                <strong>⚠️ Atenção!</strong> Você possui ${ticketsRequeremAcao} ticket(s) que requerem ação imediata.
-            </div>
-        </div>
-        `
-						: ''
-				}
-
-        ${
-					ticketsUrgentes.length > 0
-						? `
-        <!-- Tickets Urgentes -->
-        <div class="section">
-            <h2>🔴 Tickets Urgentes</h2>
-            ${ticketsUrgentes
-							.map(
-								(ticket) => `
-                <div class="ticket-card">
-                    <div class="ticket-header">
-                        <div class="ticket-id">#${ticket.id}</div>
-                        <div class="ticket-title">${truncarTexto(
-													ticket.titulo,
-													100,
-												)}</div>
-                        <div class="ticket-meta">
-                            ${getStatusBadge(
-															ticket.status,
-															ticket.prioridade_calculada,
-														)}
-                            ${getPrioridadeBadge(ticket.prioridade_calculada)}
-                            <span style="font-size: 12px; color: #6c757d;">
-                                🕐 ${ticket.tempo_decorrido}
-                            </span>
-                        </div>
-                    </div>
-                    <div class="ticket-body">
-                        <div class="ticket-description">
-                            ${truncarTexto(
-															ticket.dados_completos.descricao.replace(
-																/\n/g,
-																'<br>',
-															),
-															200,
-														)}
-                        </div>
-                        <div class="ticket-details">
-                            <div class="detail-item">
-                                <div class="detail-label">Categoria</div>
-                                <div class="detail-value">${
-																	ticket.categoria_principal
-																}</div>
-                            </div>
-                            <div class="detail-item">
-                                <div class="detail-label">Urgência</div>
-                                <div class="detail-value">${
-																	ticket.urgencia
-																}</div>
-                            </div>
-                            <div class="detail-item">
-                                <div class="detail-label">Abertura</div>
-                                <div class="detail-value">${formatarDataHora(
-																	ticket.data_abertura,
-																)}</div>
-                            </div>
-                            <div class="detail-item">
-                                <div class="detail-label">Contato</div>
-                                <div class="detail-value">${
-																	ticket.dados_completos.forma_contato
-																}</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `,
-							)
-							.join('')}
-        </div>
-        `
-						: ''
-				}
-
-        <!-- Todos os Tickets em Aberto -->
-        <div class="section">
-            <h2>📝 Tickets em Aberto (${ticketsAbertos.length})</h2>
-            ${
-							ticketsAbertos.length > 0
-								? ticketsAbertos
-										.map(
-											(ticket) => `
-                <div class="ticket-card">
-                    <div class="ticket-header">
-                        <div class="ticket-id">#${ticket.id}</div>
-                        <div class="ticket-title">${truncarTexto(
-													ticket.titulo,
-													100,
-												)}</div>
-                        <div class="ticket-meta">
-                            ${getStatusBadge(
-															ticket.status,
-															ticket.prioridade_calculada,
-														)}
-                            ${getPrioridadeBadge(ticket.prioridade_calculada)}
-                            <span style="font-size: 12px; color: #6c757d;">
-                                🕐 ${ticket.tempo_decorrido}
-                            </span>
-                        </div>
-                    </div>
-                    <div class="ticket-body">
-                        <div class="ticket-description">
-                            ${truncarTexto(
-															ticket.dados_completos.descricao.replace(
-																/\n/g,
-																'<br>',
-															),
-															200,
-														)}
-                        </div>
-                        <div class="ticket-details">
-                            <div class="detail-item">
-                                <div class="detail-label">Categoria</div>
-                                <div class="detail-value">${
-																	ticket.categoria_principal
-																}</div>
-                            </div>
-                            <div class="detail-item">
-                                <div class="detail-label">Setor</div>
-                                <div class="detail-value">${ticket.setor}</div>
-                            </div>
-                            <div class="detail-item">
-                                <div class="detail-label">Urgência</div>
-                                <div class="detail-value">${
-																	ticket.urgencia
-																}</div>
-                            </div>
-                            <div class="detail-item">
-                                <div class="detail-label">Abertura</div>
-                                <div class="detail-value">${formatarDataHora(
-																	ticket.data_abertura,
-																)}</div>
-                            </div>
-                            <div class="detail-item">
-                                <div class="detail-label">Contato</div>
-                                <div class="detail-value">${
-																	ticket.dados_completos.forma_contato
-																}</div>
-                            </div>
-                            <div class="detail-item">
-                                <div class="detail-label">Visibilidade</div>
-                                <div class="detail-value">${
-																	ticket.dados_completos.visibilidade
-																}</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            `,
-										)
-										.join('')
-								: `
-                <div class="no-tickets">
-                    <div style="font-size: 48px; margin-bottom: 15px;">🎉</div>
-                    <p>Parabéns! Você não possui tickets em aberto no momento.</p>
-                </div>
-            `
-						}
-        </div>
-
-        <!-- Estatísticas -->
-        <div class="section">
-            <h2>📊 Estatísticas</h2>
-            <div class="ticket-details">
-                <div class="detail-item">
-                    <div class="detail-label">Por Status</div>
-                    <div class="detail-value">
-                        ${Object.entries(estatisticas.por_status)
-													.map(([status, count]) => `${status}: ${count}`)
-													.join(' • ')}
-                    </div>
-                </div>
-                <div class="detail-item">
-                    <div class="detail-label">Por Urgência</div>
-                    <div class="detail-value">
-                        ${Object.entries(estatisticas.por_urgencia)
-													.map(([urgencia, count]) => `${urgencia}: ${count}`)
-													.join(' • ')}
-                    </div>
-                </div>
-                <div class="detail-item">
-                    <div class="detail-label">Período</div>
-                    <div class="detail-value">
-                        ${formatarData(
-													resumo_usuario.periodo_analise.ticket_mais_antigo,
-												)} -
-                        ${formatarData(
-													resumo_usuario.periodo_analise.ticket_mais_recente,
-												)}
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Rodapé -->
-        <div class="footer">
-            <p>📧 Relatório gerado automaticamente em ${formatarDataHora(
-							resumo_usuario.data_processamento,
-						)}</p>
-            <p>🔄 Próximo relatório será enviado amanhã no mesmo horário</p>
-        </div>
+        ${gerarCabecalho(dataRelatorio)}
+        ${gerarResumoGeral(
+					totalTicketsAbertos,
+					totalTicketsFechados,
+					ticketsRequeremAcao,
+				)}
+        ${gerarAlertaAcao(ticketsRequeremAcao)}
+        ${gerarSecaoTicketsUrgentes(ticketsUrgentes)}
+        ${gerarSecaoTicketsAbertos(ticketsAbertos)}
+        ${gerarSecaoEstatisticas(estatisticas, resumo_usuario)}
+        ${gerarRodape(resumo_usuario)}
     </div>
 </body>
 </html>
 `;
 
-// Resultado final
-const result = {
-	html: htmlContent,
-	resumo: {
-		tickets_processados: resumo_usuario.total_tickets,
-		tickets_abertos: totalTicketsAbertos,
-		tickets_fechados: totalTicketsFechados,
-		tickets_urgentes: ticketsUrgentes.length,
-		requer_acao: ticketsRequeremAcao,
-		data_geracao: new Date().toISOString(),
-	},
-	email_config: {
-		assunto: `📋 Relatório Diário GLPI - ${totalTicketsAbertos} ticket(s) em aberto`,
-		prioridade: ticketsUrgentes.length > 0 ? 'alta' : 'normal',
-		tem_urgentes: ticketsUrgentes.length > 0,
-		resumo_email: `Você possui ${totalTicketsAbertos} tickets em aberto${
-			ticketsUrgentes.length > 0
-				? `, sendo ${ticketsUrgentes.length} urgente(s)`
-				: ''
-		}.`,
-	},
-};
+	return {
+		htmlContent,
+		totalTicketsAbertos,
+		totalTicketsFechados,
+		ticketsRequeremAcao,
+		ticketsUrgentes,
+	};
+}
 
-console.log(`✅ Relatório HTML gerado com sucesso!`);
-console.log(`   • Tickets processados: ${resumo_usuario.total_tickets}`);
-console.log(`   • Tickets em aberto: ${totalTicketsAbertos}`);
-console.log(`   • Tickets urgentes: ${ticketsUrgentes.length}`);
-console.log(`   • Tamanho HTML: ${Math.round(htmlContent.length / 1024)}KB`);
+function gerarResultadoFinal(htmlData, resumo_usuario) {
+	const {
+		htmlContent,
+		totalTicketsAbertos,
+		totalTicketsFechados,
+		ticketsRequeremAcao,
+		ticketsUrgentes,
+	} = htmlData;
 
-if (isLocalEnvironment) {
-	// Ambiente local - salvar arquivo HTML
+	return {
+		html: htmlContent,
+		resumo: {
+			tickets_processados: resumo_usuario.total_tickets,
+			tickets_abertos: totalTicketsAbertos,
+			tickets_fechados: totalTicketsFechados,
+			tickets_urgentes: ticketsUrgentes.length,
+			requer_acao: ticketsRequeremAcao,
+			data_geracao: new Date().toISOString(),
+		},
+		email_config: {
+			assunto: `📋 Relatório Diário GLPI - ${totalTicketsAbertos} ticket(s) em aberto`,
+			prioridade: ticketsUrgentes.length > 0 ? 'alta' : 'normal',
+			tem_urgentes: ticketsUrgentes.length > 0,
+			resumo_email: `Você possui ${totalTicketsAbertos} tickets em aberto${
+				ticketsUrgentes.length > 0
+					? `, sendo ${ticketsUrgentes.length} urgente(s)`
+					: ''
+			}.`,
+		},
+	};
+}
+
+function salvarArquivosLocais(result) {
+	if (!isLocalEnvironment) return;
+
 	const fs = require('fs');
 	const path = require('path');
 
 	try {
+		// Salvar HTML
 		const outputPath = path.join(__dirname, 'relatorio_tickets.html');
-		fs.writeFileSync(outputPath, htmlContent, 'utf8');
+		fs.writeFileSync(outputPath, result.html, 'utf8');
 		console.log(`📄 Relatório HTML salvo em: ${outputPath}`);
 
-		// Salvar também o JSON com configurações
+		// Salvar configurações
 		const configPath = path.join(__dirname, 'email_config.json');
 		fs.writeFileSync(configPath, JSON.stringify(result, null, 2));
 		console.log(`⚙️ Configurações de email salvas em: ${configPath}`);
 	} catch (error) {
 		console.error('Erro ao salvar arquivos:', error.message);
 	}
+}
 
-	// Para ambiente local/Node.js
-	if (typeof module !== 'undefined' && module.exports) {
-		module.exports = result;
+// ============================================================================
+// EXECUÇÃO PRINCIPAL
+// ============================================================================
+
+try {
+	// Carregar dados do operador primeiro
+	operadorInfo = carregarDadosOperador();
+	console.log(
+		`📋 Operador identificado: ${operadorInfo.nome_completo} (ID: ${operadorInfo.id_glpi})`,
+	);
+
+	// Processar dados
+	const dados = processarDados();
+
+	// Gerar HTML
+	const htmlData = gerarRelatorioHTML(dados);
+
+	// Gerar resultado final
+	const htmlResult = gerarResultadoFinal(htmlData, dados.resumo_usuario);
+
+	// Resultado final
+	const result = {
+		html: htmlResult.html,
+		totalTickets: dados.resumo_usuario.total_tickets,
+		operadorRealAtendente:
+			dados.operador_que_real_atendeu ||
+			operadorInfo?.nome_completo ||
+			'Sistema Automatizado',
+		operadorLogado: {
+			nome: operadorInfo?.nome_completo || 'N/A',
+			email: operadorInfo?.email || 'N/A',
+			id_glpi: operadorInfo?.id_glpi || 'N/A',
+			titulo_eleitor: operadorInfo?.titulo_eleitor || 'N/A',
+		},
+	};
+
+	// Log de sucesso
+	console.log(`✅ Relatório HTML gerado com sucesso!`);
+	console.log(
+		`   • Tickets processados: ${dados.resumo_usuario.total_tickets}`,
+	);
+	console.log(`   • Tickets em aberto: ${htmlData.totalTicketsAbertos}`);
+	console.log(`   • Tickets urgentes: ${htmlData.ticketsUrgentes.length}`);
+	console.log(`   • Tamanho HTML: ${Math.round(result.html.length / 1024)}KB`);
+
+	// Salvar arquivos locais se necessário
+	salvarArquivosLocais(result);
+
+	// Retornar resultado baseado no ambiente
+	if (isLocalEnvironment) {
+		// Para ambiente local/Node.js
+		if (typeof module !== 'undefined' && module.exports) {
+			module.exports = result;
+		}
+		return result;
+	} else {
+		// Ambiente n8n - retornar diretamente
+		return [{ json: result }];
 	}
+} catch (error) {
+	console.error('Erro na geração do relatório:', error.message);
 
-	return result;
-} else {
-	// Ambiente n8n - retornar diretamente
-	return [{ json: result }];
+	const errorResult = {
+		html: `<p>Erro na geração do relatório: ${error.message}</p>`,
+		error: true,
+	};
+
+	if (isLocalEnvironment) {
+		return errorResult;
+	} else {
+		return [{ json: errorResult }];
+	}
 }
