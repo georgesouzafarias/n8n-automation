@@ -1,0 +1,11 @@
+{
+  "totalContent": 1,
+  "listContent": [
+    {
+      "title": "runc container breakout  vulnerabilities: A technical overview",
+      "contentSnippet": "A set of high-severity vulnerabilities in runc were publicly disclosed in November 2025, allowing for full container breakouts. Runc is the cornerstone of containerization on Linux, serving as the default low-level container runtime for industry-standard tools...",
+      "isoDate": "2025-11-28T12:00:00.000Z",
+      "link": "https://www.cncf.io/blog/2025/11/28/runc-container-breakout-vulnerabilities-a-technical-overview/"
+    }
+  ]
+}
